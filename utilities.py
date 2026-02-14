@@ -639,7 +639,7 @@ def generate_pdf(
             # Create the array that will store the filled templates
             pages: List[Image.Image] = []
 
-            max_print_bleed = calculate_max_print_bleed(card_layout.x_pos, card_layout.y_pos, card_layout_size.width, card_layout_size.height, math.ceil(MINIMUM_BLEED * ppi_ratio))
+            max_print_bleed = calculate_max_print_bleed(card_layout.x_pos, card_layout.y_pos, card_layout_size.width, card_layout_size.height, MINIMUM_BLEED)
 
             # Load and cache the single back image for reuse
             # Do this if we expect both front and back pages and if we have a back image
@@ -856,10 +856,7 @@ def calculate_max_print_bleed(x_pos: List[int], y_pos: List[int], width: int, he
         x_pos_0 = x_pos[0]
         x_pos_1 = x_pos[1]
 
-        x_border_max = math.ceil((x_pos_1 - x_pos_0 - width) / 2)
-
-        if x_border_max < min_bleed:
-            x_border_max = min_bleed
+        x_border_max = max(0, math.ceil((x_pos_1 - x_pos_0 - width) / 2))
 
     y_border_max = min_bleed
     if len(y_pos) >= 2:
@@ -868,9 +865,6 @@ def calculate_max_print_bleed(x_pos: List[int], y_pos: List[int], width: int, he
         y_pos_0 = y_pos[0]
         y_pos_1 = y_pos[1]
 
-        y_border_max = math.ceil((y_pos_1 - y_pos_0 - height) / 2)
-
-        if y_border_max < min_bleed:
-            y_border_max = min_bleed
+        y_border_max = max(0, math.ceil((y_pos_1 - y_pos_0 - height) / 2))
 
     return (x_border_max, y_border_max)
