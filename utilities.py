@@ -207,51 +207,6 @@ def get_back_card_image_path(back_dir_path) -> str | None:
 
     return files[index]
 
-def fit_image_to_size(
-    card_image: Image.Image,
-    scaled_width: int,
-    scaled_height: int,
-    fit: FitMode
-) -> Image.Image:
-    """
-    Fit an image to the target size.
-
-    Args:
-        card_image: The image to fit
-        scaled_width: Target width
-        scaled_height: Target height
-        fit: Either "stretch" (allows distortion) or "crop" (preserves aspect ratio)
-
-    Returns:
-        The fitted image
-    """
-    if fit == FitMode.STRETCH:
-        # Current behavior: stretch to fit (may distort)
-        return card_image.resize((scaled_width, scaled_height))
-
-    elif fit == FitMode.CROP:
-        # New behavior: crop to preserve aspect ratio, then scale
-        card_width, card_height = card_image.size
-        target_aspect = scaled_width / scaled_height
-        current_aspect = card_width / card_height
-
-        if current_aspect > target_aspect:
-            # Image is wider than target, crop left and right
-            new_width = int(card_height * target_aspect)
-            crop_x = (card_width - new_width) // 2
-            card_image = card_image.crop((crop_x, 0, crop_x + new_width, card_height))
-        elif current_aspect < target_aspect:
-            # Image is taller than target, crop top and bottom
-            new_height = int(card_width / target_aspect)
-            crop_y = (card_height - new_height) // 2
-            card_image = card_image.crop((0, crop_y, card_width, crop_y + new_height))
-
-        # Now scale to target size (no distortion because aspect ratios match)
-        return card_image.resize((scaled_width, scaled_height))
-
-    else:
-        raise ValueError(f"Invalid fit: {fit}. Must be 'stretch' or 'crop'.")
-
 def crop_and_scale_image(
     card_image: Image.Image,
     crop_percent_x: float,
@@ -259,10 +214,15 @@ def crop_and_scale_image(
     scaled_width: int,
     scaled_height: int,
     scaled_bleed_width: int,
-    scaled_bleed_height: int
+    scaled_bleed_height: int,
+    fit: FitMode = FitMode.STRETCH
 ) -> tuple[Image.Image, int, int, tuple[int, int]]:
     """
     Crop and scale a card image, returning the processed image and bleed offsets.
+
+    When fit == STRETCH (default), each axis scales independently.
+    When fit == CROP, a uniform scale ratio is used (preserving aspect ratio),
+    and excess image data on the non-limiting axis is used for real bleed.
 
     Returns:
         tuple of:
@@ -278,8 +238,16 @@ def crop_and_scale_image(
     cropped_height = math.floor(card_height * (1 - (crop_percent_y / 100)))
 
     # Calculate the ratio between the cropped size and the scaled size: "scale ratio"
-    cropped_scaled_ratio_x = cropped_width / scaled_width
-    cropped_scaled_ratio_y = cropped_height / scaled_height
+    if fit == FitMode.CROP:
+        # Uniform scaling: use the smaller ratio (the tighter-fitting axis) so that
+        # the image fills the entire target area. The other axis has excess image
+        # data that gets cropped away or used as real bleed.
+        uniform_ratio = min(cropped_width / scaled_width, cropped_height / scaled_height)
+        cropped_scaled_ratio_x = uniform_ratio
+        cropped_scaled_ratio_y = uniform_ratio
+    else:
+        cropped_scaled_ratio_x = cropped_width / scaled_width
+        cropped_scaled_ratio_y = cropped_height / scaled_height
 
     # Calculate the size of the card after adding bleed: "bleed size"
     scaled_width_with_bleed = scaled_width + 2 * scaled_bleed_width
@@ -289,9 +257,12 @@ def crop_and_scale_image(
     unscaled_width_with_bleed = math.floor(scaled_width_with_bleed * cropped_scaled_ratio_x)
     unscaled_height_with_bleed = math.floor(scaled_height_with_bleed * cropped_scaled_ratio_y)
 
+    can_bleed_x = unscaled_width_with_bleed <= card_width
+    can_bleed_y = unscaled_height_with_bleed <= card_height
+
     # Check if the unscaled bleed size is smaller than the original card size
     # If so, we can use real bleed from the card's edge pixels
-    if unscaled_width_with_bleed < card_width and unscaled_height_with_bleed < card_height:
+    if can_bleed_x and can_bleed_y:
         crop_x = (card_width - unscaled_width_with_bleed) // 2
         crop_y = (card_height - unscaled_height_with_bleed) // 2
         card_image = card_image.crop((
@@ -305,7 +276,36 @@ def crop_and_scale_image(
         # Offset position to account for bleed included in image
         return card_image, -scaled_bleed_width, -scaled_bleed_height, (0, 0)
 
-    # Otherwise, crop the card to the cropped size, then resize it to the scaled size
+    # Per-axis bleed paths (CROP mode only — uniform ratio guarantees no distortion)
+    if fit == FitMode.CROP:
+        if can_bleed_x:
+            # Real bleed on X, synthetic on Y
+            content_height = min(math.floor(scaled_height * cropped_scaled_ratio_y), card_height)
+            crop_x = (card_width - unscaled_width_with_bleed) // 2
+            crop_y = (card_height - content_height) // 2
+            card_image = card_image.crop((crop_x, crop_y, card_width - crop_x, card_height - crop_y))
+            card_image = card_image.resize((scaled_width_with_bleed, scaled_height))
+            return card_image, -scaled_bleed_width, 0, (0, scaled_bleed_height)
+
+        if can_bleed_y:
+            # Synthetic on X, real bleed on Y
+            content_width = min(math.floor(scaled_width * cropped_scaled_ratio_x), card_width)
+            crop_x = (card_width - content_width) // 2
+            crop_y = (card_height - unscaled_height_with_bleed) // 2
+            card_image = card_image.crop((crop_x, crop_y, card_width - crop_x, card_height - crop_y))
+            card_image = card_image.resize((scaled_width, scaled_height_with_bleed))
+            return card_image, 0, -scaled_bleed_height, (scaled_bleed_width, 0)
+
+        # Neither axis has room for real bleed — center-crop to content area
+        content_width = min(math.floor(scaled_width * cropped_scaled_ratio_x), card_width)
+        content_height = min(math.floor(scaled_height * cropped_scaled_ratio_y), card_height)
+        crop_x = (card_width - content_width) // 2
+        crop_y = (card_height - content_height) // 2
+        card_image = card_image.crop((crop_x, crop_y, card_width - crop_x, card_height - crop_y))
+        card_image = card_image.resize((scaled_width, scaled_height))
+        return card_image, 0, 0, (scaled_bleed_width, scaled_bleed_height)
+
+    # STRETCH fallback: crop the card to the cropped size, then resize it to the scaled size
     crop_x = card_width * (crop_percent_x / 100) // 2
     crop_y = card_height * (crop_percent_y / 100) // 2
     card_image = card_image.crop((
@@ -412,26 +412,8 @@ def draw_card_layout(
         else:
             active_crop_x, active_crop_y = crop_percent_x, crop_percent_y
 
-        # Step 1: Apply fit mode for aspect ratio correction (if fit == CROP)
-        if fit == FitMode.CROP:
-            card_width, card_height = card_image.size
-            target_aspect = scaled_width / scaled_height
-            current_aspect = card_width / card_height
-
-            if current_aspect > target_aspect:
-                # Image is wider than target, crop left and right
-                new_width = int(card_height * target_aspect)
-                crop_x = (card_width - new_width) // 2
-                card_image = card_image.crop((crop_x, 0, crop_x + new_width, card_height))
-            elif current_aspect < target_aspect:
-                # Image is taller than target, crop top and bottom
-                new_height = int(card_width / target_aspect)
-                crop_y = (card_height - new_height) // 2
-                card_image = card_image.crop((0, crop_y, card_width, crop_y + new_height))
-
-        # Step 2: Apply percentage cropping and scaling
-        if active_crop_x > 0 or active_crop_y > 0:
-            # Returns: (image, x_offset, y_offset, synthetic_bleed_to_generate)
+        # Apply cropping, scaling, and fit mode
+        if active_crop_x > 0 or active_crop_y > 0 or fit == FitMode.CROP:
             card_image, bleed_offset_x, bleed_offset_y, synthetic_bleed = crop_and_scale_image(
                 card_image,
                 active_crop_x,
@@ -439,10 +421,11 @@ def draw_card_layout(
                 scaled_width,
                 scaled_height,
                 scaled_bleed_width,
-                scaled_bleed_height
+                scaled_bleed_height,
+                fit
             )
         else:
-            # No percentage crop, just scale to target size
+            # No percentage crop and STRETCH mode: just scale to target size
             card_image = card_image.resize((scaled_width, scaled_height))
 
         # Extend the corners if required
