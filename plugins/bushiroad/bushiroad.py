@@ -38,8 +38,10 @@ def request_bushiroad(query: str, referer: str = '') -> Response:
     else:
         r = get(query, headers = {'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*', 'referer': referer})
 
+    # Check for 2XX response code
     r.raise_for_status()
-    sleep(0.15)
+
+    sleep(0.075)
 
     return r
 
