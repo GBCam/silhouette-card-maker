@@ -23,7 +23,7 @@ Run the script.
 python plugins/bushiroad/fetch.py game/decklist/deck.txt bushiroad_url
 ```
 
-Now you can create the PDF using [`create_pdf.py`](../../README.md#create_pdfpy).
+Now you can create the PDF using [`create_pdf.py`]({{% ref "../docs/create" %}}).
 
 ## CLI Options
 
