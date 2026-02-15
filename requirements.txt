@@ -1,9 +1,9 @@
 click==8.1.8
 natsort==8.4.0
 numpy==2.3.3
-Pillow==11.3.0
+pillow==12.1.1
 pydantic==2.12.0
-Requests==2.32.3
+requests==2.32.4
 pypdfium2==4.30.0
 split-image==2.0.1
 filetype==1.2.0
