@@ -32,33 +32,36 @@ def cli(
     prefer_extra_art: bool,
     tokens: bool
 ):
-    if not os.path.isfile(deck_path) and not format == DeckFormat.URL:
-        print(f'{deck_path} is not a valid file.')
-        return
-    
-    with open(deck_path, 'r') as deck_file:
-        deck_text = deck_file.read()
+    if format == DeckFormat.URL:
+        deck_text = deck_path
+    else:
+        if not os.path.isfile(deck_path):
+            print(f'{deck_path} is not a valid file.')
+            return
 
-        if format == DeckFormat.MPCFILL_XML:
-            get_handle_card = mpc_get_handle_card(
-                front_directory,
-                double_sided_directory
-            )
-            prefetch_mpcfill(extract_mpcfill_card_ids(deck_text))
-        else:
-            get_handle_card = scryfall_get_handle_card(
-                ignore_set_and_collector_number,
+        with open(deck_path, 'r') as deck_file:
+            deck_text = deck_file.read()
 
-                prefer_older_sets,
-                prefer_set,
+    if format == DeckFormat.MPCFILL_XML:
+        get_handle_card = mpc_get_handle_card(
+            front_directory,
+            double_sided_directory
+        )
+        prefetch_mpcfill(extract_mpcfill_card_ids(deck_text))
+    else:
+        get_handle_card = scryfall_get_handle_card(
+            ignore_set_and_collector_number,
 
-                prefer_showcase,
-                prefer_extra_art,
-                tokens,
+            prefer_older_sets,
+            prefer_set,
 
-                front_directory,
-                double_sided_directory
-            )
+            prefer_showcase,
+            prefer_extra_art,
+            tokens,
+
+            front_directory,
+            double_sided_directory
+        )
 
     parse_deck(
         deck_text,
