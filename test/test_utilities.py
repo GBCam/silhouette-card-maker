@@ -691,7 +691,7 @@ class TestDrawCardWithBleed:
     def test_card_placed_at_position(self):
         """Card should be pasted at the specified position.
 
-            10        15        24        29
+            10        15        24       29
         10  +-------- +-------- +--------+
             | corner  | top     | corner |
         15  +-------- CCCCCCCCCC --------+
@@ -715,7 +715,7 @@ class TestDrawCardWithBleed:
     def test_edge_bleed_extends(self):
         """Edge bleed should extend the card's border pixels outward.
 
-            10        15        24        29
+            10        15        24       29
         10  +-------- +-------- +--------+
             | corner  |*top*    | corner |
         15  +-------- CCCCCCCCCC --------+
@@ -751,13 +751,13 @@ class TestDrawCardWithBleed:
     def test_corner_bleed_fills(self):
         """Corner bleed regions should be filled with corner pixel color.
 
-            10        15        24        29
+            10        15        24       29
         10  *TL*      +-------- +      *TR*
-            |         | top     |         |
+            |         | top     |        |
         15  +-------- CCCCCCCCCC --------+
             | left    | card    | right  |
         24  +-------- CCCCCCCCCC --------+
-            |         | bottom  |         |
+            |         | bottom  |        |
         29  *BL*      +-------- +      *BR*
 
         *XX* = corner bleed regions checked in this test
@@ -787,9 +787,9 @@ class TestDrawCardWithBleed:
     def test_zero_bleed(self):
         """Zero bleed should just place the card with no bleed extension.
 
-        15        24
+        15       24
         CCCCCCCCCC
-        C card   C
+        C  card  C
         CCCCCCCCCC
 
         No bleed regions — pixels at x=14, x=25, y=14, y=25
@@ -822,7 +822,7 @@ class TestDrawCardLayout:
 
         Base 300x400, card 100x140 at (50,50):
 
-           0    50       149          299
+           0    50       149         299
         0  +----+--------+-----------+
            |    |        |           |
         50 | .. RRRRRRRRRR ......... |
@@ -929,11 +929,11 @@ class TestDrawCardLayout:
 
            10       109  150      249
         10 RRRRRRRRRR    BBBBBBBBBB
-           R  card0  R   B  card1  B
+           R card0  R    B card1  B
        149 RRRRRRRRRR    BBBBBBBBBB
 
        200 GGGGGGGGGG    YYYYYYYYYY
-           G  card2  G   Y  card3  Y
+           G card2  G    Y card3  Y
        339 GGGGGGGGGG    YYYYYYYYYY
 
         R=red, B=blue, G=green, Y=yellow
@@ -980,7 +980,7 @@ class TestDrawCardLayout:
 
         Card 10x10 at (15,15), bleed 5px:
 
-            10        15        24        29
+            10        15        24       29
         10  +-------- +-------- +--------+
             | corner  | top     | corner |
         15  +-------- CCCCCCCCCC --------+
@@ -1030,7 +1030,7 @@ class TestDrawCardLayout:
         Card 10x10 at pos (10,10), ppi_ratio=2.0:
         Scaled position = (20,20), scaled size = 20x20.
 
-           20        39
+           20       39
         20 CCCCCCCCCC
            C  card  C
         39 CCCCCCCCCC
