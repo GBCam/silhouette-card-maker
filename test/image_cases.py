@@ -16,11 +16,25 @@ EXPECTED_DIR = os.path.join('test', 'images_expected')  # pre-generated referenc
 # - extra_cli_args: additional CLI arguments passed to create_pdf
 TEST_CASES = [
     ('default',        []),
-    ('japanese',       ['--card_size', 'japanese']),
     ('only_fronts',    ['--only_fronts']),
-    ('a4',             ['--paper_size', 'a4']),
-    ('crop',           ['--crop', '3mm']),
-    ('extend_corners', ['--extend_corners', '5']),
-    ('fit_crop',       ['--fit', 'crop']),
+
+    # Card sizes
+    ('bridge',         ['--card_size', 'bridge', '--only_fronts']),
+    ('poker',          ['--card_size', 'poker', '--only_fronts']),
+    ('japanese',       ['--card_size', 'japanese', '--only_fronts']),
+
+    # Paper sizes
+    ('tabloid',        ['--paper_size', 'tabloid', '--only_fronts']),
+    ('a4',             ['--paper_size', 'a4', '--only_fronts']),
+    ('a3',             ['--paper_size', 'a3', '--only_fronts']),
+
+    # Paper and card combinations
+    ('tabloid-domino_square',      ['--paper_size', 'tabloid', '--card_size', 'domino_square', '--only_fronts']),
+    ('a4-bridge',      ['--paper_size', 'a4', '--card_size', 'bridge', '--only_fronts']),
+
+    # Other options
+    ('crop',           ['--crop', '3mm', '--only_fronts']),
+    ('extend_corners', ['--extend_corners', '10', '--only_fronts']),
+    ('fit_crop',       ['--card_size', 'domino','--fit', 'crop', '--only_fronts']),
     ('skip',           ['--skip', '0', '--skip', '4']),
 ]
