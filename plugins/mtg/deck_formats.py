@@ -291,14 +291,15 @@ def parse_mpcfill_xml(deck_text, handle_card: Callable) -> None:
                 slots[slot_idx]["back_id"] = card_id
                 slots[slot_idx]["back_name"] = name
 
-    # Call handle_card once per slot
+    # Call handle_card once per slot (1-indexed for display and filenames)
     for slot_idx, slot in enumerate(slots):
+        slot_num = slot_idx + 1
         if slot["front_id"] is None:
-            print(f"Warning: Slot {slot_idx} has no front image, skipping")
+            print(f"Warning: Slot {slot_num} has no front image, skipping")
             continue
 
-        print(f"Slot {slot_idx}: {slot['front_name']}" + (f" / {slot['back_name']}" if slot['back_id'] else ""))
-        handle_card(slot_idx, slot["front_id"], slot["front_name"], slot["back_id"], slot["back_name"])
+        print(f"Slot {slot_num}: {slot['front_name']}" + (f" / {slot['back_name']}" if slot['back_id'] else ""))
+        handle_card(slot_num, slot["front_id"], slot["front_name"], slot["back_id"], slot["back_name"])
 
 # CubeCobra CSV
 # Exported from CubeCobra (https://cubecobra.com)
