@@ -132,12 +132,15 @@ def resolve_paper_size_alias(layout_config: LayoutConfig, paper_size: str) -> st
 
 def get_all_card_size_names(layout_config: LayoutConfig) -> List[str]:
     """Return all valid card size names: canonical names and their aliases.
-    Sorted alphabetically, with names starting with a digit at the end."""
+    standard, poker, bridge first; then alphabetical; then names starting with a digit."""
     names = list(layout_config.card_sizes.keys())
     for card_def in layout_config.card_sizes.values():
         if card_def.aliases:
             names.extend(card_def.aliases)
-    return sorted(names, key=lambda n: (n[0].isdigit(), n))
+    priority = ["standard", "poker", "bridge"]
+    priority_names = [n for n in priority if n in names]
+    rest = sorted((n for n in names if n not in priority), key=lambda n: (n[0].isdigit(), n))
+    return priority_names + rest
 
 
 def get_all_paper_size_names(layout_config: LayoutConfig) -> List[str]:

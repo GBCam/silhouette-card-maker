@@ -242,18 +242,18 @@ Usage: create_pdf.py [OPTIONS]
 
 Options:
   --front_dir_path TEXT           The path to the directory containing the
-                                  card fronts.  [default: game/front]
+                                  card fronts.  [default: game\front]
   --back_dir_path TEXT            The path to the directory containing one or
-                                  more card backs.  [default: game/back]
+                                  more card backs.  [default: game\back]
   --double_sided_dir_path TEXT    The path to the directory containing card
                                   backs for double-sided cards.  [default:
-                                  game/double_sided]
+                                  game\double_sided]
   --output_path TEXT              The desired path to the output PDF.
-                                  [default: game/output/game.pdf]
+                                  [default: game\output\game.pdf]
   --output_images                 Create images instead of a PDF.
-  --card_size [standard|standard_double|japanese|poker|poker_half|bridge|bridge_square|tarot|domino|domino_square]
+  --card_size [standard|poker|bridge|american_mini|bridge_square|business|catan|credit|domino|domino_square|euro_business|euro_mini|euro_poker|japanese|jumbo|micro|mini|mini_american|mini_euro|photo|standard_double|tarot|70mm_square]
                                   The desired card size.  [default: standard]
-  --paper_size [letter|tabloid|a4|a3|arch_b]
+  --paper_size [a3|a4|ansi_a|ansi_b|arch_b|letter|tabloid]
                                   The desired paper size.  [default: letter]
   --registration [3|4]            The desired registration.  [default: 3]
   --only_fronts                   Only use the card fronts, exclude the card
@@ -272,13 +272,13 @@ Options:
                                   [default: 300; x>=0]
   --quality INTEGER RANGE         File compression. A higher value corresponds
                                   to better quality and larger file size.
-                                  [default: 75; 0<=x<=100]
+                                  [default: 100; 0<=x<=100]
   --load_offset                   Apply saved offsets. See `offset_pdf.py` for
                                   more information.
   --skip INTEGER RANGE            Skip a card based on its index. Useful for
                                   registration issues. Examples: 0, 4.  [x>=0]
-  --name TEXT                     Label each page of the PDF with a name.
-  --show_outline                  Overlay a white outline of the cutting path
+  --label TEXT                    Apply a custom label to each page.
+  --show_outline                  Overlay a black outline of the cutting path
                                   on each page.
   --version                       Show the version and exit.
   --help                          Show this message and exit.
