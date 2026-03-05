@@ -20,7 +20,7 @@ import click
 import page_manager
 import dxf_manager
 import size_convert
-from enums import Orientation
+from enums import Orientation, OrientationMode
 from utilities import LayoutConfig, load_layout_config, template_name, resolve_card_size_alias, resolve_paper_size_alias, get_all_card_size_names, get_all_paper_size_names
 
 OUTPUT_DIR = Path("cutting_templates") / "dxf"
@@ -89,16 +89,16 @@ def generate_single_dxf(
 @click.command()
 
 # Predefined paper/card sizes from layouts.json
-@click.option("--card_size", type=click.Choice(card_size_choices, case_sensitive=False), help="Card size. Cannot be combined with --card_length/--card_width.")
-@click.option("--paper_size", type=click.Choice(paper_size_choices, case_sensitive=False), help="Paper size. Cannot be combined with --paper_length/--paper_width.")
+@click.option("--card_size", type=click.Choice(card_size_choices, case_sensitive=False), help="Card size. Cannot be combined with --card_height/--card_width.")
+@click.option("--paper_size", type=click.Choice(paper_size_choices, case_sensitive=False), help="Paper size. Cannot be combined with --paper_height/--paper_width.")
 
 # For defining paper/card sizes directly instead of using predefined ones from layouts.json
-@click.option("--card_length", type=str, default=None, help="Card length (height) as a size string (e.g. '88mm', '3.5in'). Requires --card_width. Cannot be combined with --card_size.")
-@click.option("--card_width", type=str, default=None, help="Card width as a size string (e.g. '63mm', '2.5in'). Requires --card_length. Cannot be combined with --card_size.")
-@click.option("--card_radius", type=str, default=None, help="Card corner radius as a size string (e.g. '3mm'). Overrides the default radius for the card size. Defaults to 3mm when using --card_length/--card_width.")
+@click.option("--card_height", type=str, default=None, help="Card length (height) as a size string (e.g. '88mm', '3.5in'). Requires --card_width. Cannot be combined with --card_size.")
+@click.option("--card_width", type=str, default=None, help="Card width as a size string (e.g. '63mm', '2.5in'). Requires --card_height. Cannot be combined with --card_size.")
+@click.option("--card_radius", type=str, default=None, help="Card corner radius as a size string (e.g. '3mm'). Overrides the default radius for the card size. Defaults to 3mm when using --card_height/--card_width.")
 @click.option("--card_name", type=str, default=None, help="Override the card label used for the output filename and --save.")
-@click.option("--paper_length", type=str, default=None, help="Paper length (longer dimension) as a size string (e.g. '11in', '297mm'). Requires --paper_width. Cannot be combined with --paper_size.")
-@click.option("--paper_width", type=str, default=None, help="Paper width (shorter dimension) as a size string (e.g. '8.5in', '210mm'). Requires --paper_length. Cannot be combined with --paper_size.")
+@click.option("--paper_height", type=str, default=None, help="Paper length (longer dimension) as a size string (e.g. '11in', '297mm'). Requires --paper_width. Cannot be combined with --paper_size.")
+@click.option("--paper_width", type=str, default=None, help="Paper width (shorter dimension) as a size string (e.g. '8.5in', '210mm'). Requires --paper_height. Cannot be combined with --paper_size.")
 @click.option("--paper_name", type=str, default=None, help="Override the paper label used for the output filename and --save.")
 @click.option("--save", "save", is_flag=True, help="Save new card/paper sizes and layout combination to assets/layouts.json.")
 
@@ -107,8 +107,9 @@ def generate_single_dxf(
 @click.option("--all_optimize", "optimize_all", is_flag=True, help="Generate DXF files for all combinations, optimizing orientation for maximum cards. Updates layouts.json if a better orientation is found.")
 @click.option("--new", "generate_new", is_flag=True, help="Generate DXF files only for new paper and card combinations.")
 
+@click.option("--orientation", type=click.Choice([e.value for e in OrientationMode], case_sensitive=False), default=OrientationMode.OPTIMIZE.value, show_default=True, help="Page orientation: optimize (auto-select), landscape, or portrait.")
 @click.option("--output_dir_path", type=click.Path(), default=str(OUTPUT_DIR), show_default=True, help="Output directory for DXF files.")
-def cli(paper_size, card_size, card_length, card_width, card_radius, paper_length, paper_width, card_name, paper_name, save, generate_all, generate_new, optimize_all, output_dir_path):
+def cli(paper_size, card_size, card_height, card_width, card_radius, paper_height, paper_width, card_name, paper_name, save, generate_all, generate_new, optimize_all, orientation, output_dir_path):
     """Generate DXF cutting templates from layouts.json."""
     config = load_layout_config()
 
@@ -167,30 +168,30 @@ def cli(paper_size, card_size, card_length, card_width, card_radius, paper_lengt
 
     # Validate card dimension options
     has_card_size = card_size is not None
-    has_card_dims = card_length is not None or card_width is not None
+    has_card_dims = card_height is not None or card_width is not None
 
     if has_card_size and has_card_dims:
-        raise click.UsageError("Cannot use --card_size together with --card_length or --card_width.")
-    if card_length is not None and card_width is None:
-        raise click.UsageError("--card_length requires --card_width.")
-    if card_width is not None and card_length is None:
-        raise click.UsageError("--card_width requires --card_length.")
+        raise click.UsageError("Cannot use --card_size together with --card_height or --card_width.")
+    if card_height is not None and card_width is None:
+        raise click.UsageError("--card_height requires --card_width.")
+    if card_width is not None and card_height is None:
+        raise click.UsageError("--card_width requires --card_height.")
 
     # Validate paper dimension options
     has_paper_size = paper_size is not None
-    has_paper_dims = paper_length is not None or paper_width is not None
+    has_paper_dims = paper_height is not None or paper_width is not None
 
     if has_paper_size and has_paper_dims:
-        raise click.UsageError("Cannot use --paper_size together with --paper_length or --paper_width.")
-    if paper_length is not None and paper_width is None:
-        raise click.UsageError("--paper_length requires --paper_width.")
-    if paper_width is not None and paper_length is None:
-        raise click.UsageError("--paper_width requires --paper_length.")
+        raise click.UsageError("Cannot use --paper_size together with --paper_height or --paper_width.")
+    if paper_height is not None and paper_width is None:
+        raise click.UsageError("--paper_height requires --paper_width.")
+    if paper_width is not None and paper_height is None:
+        raise click.UsageError("--paper_width requires --paper_height.")
 
     if not has_card_size and not has_card_dims:
-        raise click.UsageError("Provide --card_size or (--card_length and --card_width), or use --all.")
+        raise click.UsageError("Provide --card_size or (--card_height and --card_width), or use --all.")
     if not has_paper_size and not has_paper_dims:
-        raise click.UsageError("Provide --paper_size or (--paper_length and --paper_width), or use --all.")
+        raise click.UsageError("Provide --paper_size or (--paper_height and --paper_width), or use --all.")
 
     # Resolve aliases
     if has_card_size:
@@ -207,9 +208,9 @@ def cli(paper_size, card_size, card_length, card_width, card_radius, paper_lengt
         card_label = card_size
     else:
         resolved_card_width = card_width
-        resolved_card_height = card_length
+        resolved_card_height = card_height
         resolved_card_radius = card_radius if card_radius is not None else config.defaults.card_radius
-        card_label = f"{card_width}x{card_length}"
+        card_label = f"{card_width}x{card_height}"
 
     # Resolve paper parameters (stored as landscape: longer dim = width)
     if has_paper_size:
@@ -218,15 +219,15 @@ def cli(paper_size, card_size, card_length, card_width, card_radius, paper_lengt
         resolved_paper_height = paper_def.height
         paper_label = paper_size
     else:
-        pl_mm = size_convert.size_to_mm(paper_length)
+        pl_mm = size_convert.size_to_mm(paper_height)
         pw_mm = size_convert.size_to_mm(paper_width)
         if pl_mm >= pw_mm:
-            resolved_paper_width = paper_length
+            resolved_paper_width = paper_height
             resolved_paper_height = paper_width
         else:
             resolved_paper_width = paper_width
-            resolved_paper_height = paper_length
-        paper_label = f"{paper_width}x{paper_length}"
+            resolved_paper_height = paper_height
+        paper_label = f"{paper_width}x{paper_height}"
 
     # Apply name overrides
     if card_name is not None:
@@ -234,16 +235,9 @@ def cli(paper_size, card_size, card_length, card_width, card_radius, paper_lengt
     if paper_name is not None:
         paper_label = paper_name
 
-    # Determine orientation and output name
-    if has_card_size and has_paper_size:
-        if paper_size not in config.layouts or card_size not in config.layouts.get(paper_size, {}):
-            raise click.UsageError(f"No layout defined for {paper_size} + {card_size}. Check layouts.json or use --list.")
-        layout_def = config.layouts[paper_size][card_size]
-        orientation = layout_def.orientation
-        version = layout_def.version
-    else:
-        orientation = Orientation.LANDSCAPE
-        version = 1
+    # Determine version for the output filename
+    layout_def = config.layouts.get(paper_size or paper_label, {}).get(card_size or card_label)
+    version = layout_def.version if layout_def else 1
 
     name = template_name(paper_label, card_label, version)
     output_file = out / f"{name}.dxf"
@@ -252,16 +246,25 @@ def cli(paper_size, card_size, card_length, card_width, card_radius, paper_lengt
     ppi = config.ppi
 
     total_length_mm = size_convert.size_to_mm(reg.length) + page_manager.REG_PADDING_MM
-    computed = page_manager.generate_layout(
-        orientation=orientation,
-        card_width=resolved_card_width,
-        card_height=resolved_card_height,
-        paper_width=resolved_paper_width,
-        paper_height=resolved_paper_height,
-        inset=reg.inset,
-        length=f"{total_length_mm}mm",
-        ppi=ppi,
-    )
+
+    card_w_px = size_convert.size_to_pixel(resolved_card_width, ppi)
+    card_h_px = size_convert.size_to_pixel(resolved_card_height, ppi)
+    preferred = Orientation.PORTRAIT if card_w_px == card_h_px else Orientation.LANDSCAPE
+
+    try:
+        resolved_orientation, computed = find_best_orientation(
+            OrientationMode(orientation),
+            resolved_card_width,
+            resolved_card_height,
+            resolved_paper_width,
+            resolved_paper_height,
+            inset=reg.inset,
+            length=f"{total_length_mm}mm",
+            ppi=ppi,
+            preferred=preferred,
+        )
+    except ValueError as e:
+        raise click.UsageError(str(e))
 
     x_pos = computed.x_pos
     y_pos = computed.y_pos
@@ -308,7 +311,7 @@ def cli(paper_size, card_size, card_length, card_width, card_radius, paper_lengt
             if paper_label not in raw_config["layouts"]:
                 raw_config["layouts"][paper_label] = {}
             raw_config["layouts"][paper_label][card_label] = {
-                "orientation": orientation.value,
+                "orientation": resolved_orientation.value,
                 "version": version,
                 "num_rows": num_rows,
                 "num_cols": num_cols,
@@ -325,6 +328,60 @@ def cli(paper_size, card_size, card_length, card_width, card_radius, paper_lengt
             print("  No new entries to save.")
 
     print("Done!")
+
+
+def find_best_orientation(
+    orientation_mode: OrientationMode,
+    card_width: str,
+    card_height: str,
+    paper_width: str,
+    paper_height: str,
+    inset: str,
+    length: str,
+    ppi: int,
+    preferred: Orientation = Orientation.LANDSCAPE,
+) -> tuple[Orientation, page_manager.CardLayout]:
+    """Resolve an OrientationMode to a concrete Orientation and compute the layout.
+
+    For OPTIMIZE, tries both orientations and returns the one with more cards,
+    using `preferred` as a tiebreaker.
+
+    Raises:
+        ValueError if no valid layout exists in any tried orientation.
+    """
+    kwargs = dict(
+        card_width=card_width,
+        card_height=card_height,
+        paper_width=paper_width,
+        paper_height=paper_height,
+        inset=inset,
+        length=length,
+        ppi=ppi,
+    )
+
+    if orientation_mode != OrientationMode.OPTIMIZE:
+        orientation = Orientation(orientation_mode.value)
+        return orientation, page_manager.generate_layout(orientation=orientation, **kwargs)
+
+    best_count = 0
+    best_orientation = preferred
+    best_computed = None
+
+    for orient in Orientation:
+        try:
+            computed = page_manager.generate_layout(orientation=orient, **kwargs)
+        except ValueError:
+            continue
+        count = len(computed.x_pos) * len(computed.y_pos)
+        if count > best_count or (count == best_count and orient == preferred):
+            best_count = count
+            best_orientation = orient
+            best_computed = computed
+
+    if best_computed is None:
+        raise ValueError("No valid layout in either orientation.")
+
+    return best_orientation, best_computed
 
 
 def generate_all_optimized(config: LayoutConfig, out: Path):
@@ -367,40 +424,28 @@ def generate_all_optimized(config: LayoutConfig, out: Path):
                 # Square cards: prefer portrait page (card looks the same either way).
                 card_w_px = size_convert.size_to_pixel(card_def.width, ppi)
                 card_h_px = size_convert.size_to_pixel(card_def.height, ppi)
-                preferred_orientation = (
+                preferred = (
                     Orientation.PORTRAIT if card_w_px == card_h_px
                     else Orientation.LANDSCAPE
                 )
 
-                # Try both orientations, collect valid results
-                best_count = 0
-                best_orientation = preferred_orientation
-                best_computed = None
-
-                for orient in Orientation:
-                    try:
-                        computed = page_manager.generate_layout(
-                            orientation=orient,
-                            card_width=card_def.width,
-                            card_height=card_def.height,
-                            paper_width=paper_def.width,
-                            paper_height=paper_def.height,
-                            inset=reg.inset,
-                            length=f"{total_length_mm}mm",
-                            ppi=ppi,
-                        )
-                    except ValueError:
-                        continue
-                    count = len(computed.x_pos) * len(computed.y_pos)
-                    if count > best_count or (count == best_count and orient == preferred_orientation):
-                        best_count = count
-                        best_orientation = orient
-                        best_computed = computed
-
-                if best_computed is None:
-                    print(f"  {ps} + {cs}: no valid layout in either orientation, skipping")
+                try:
+                    best_orientation, best_computed = find_best_orientation(
+                        OrientationMode.OPTIMIZE,
+                        card_def.width,
+                        card_def.height,
+                        paper_def.width,
+                        paper_def.height,
+                        inset=reg.inset,
+                        length=f"{total_length_mm}mm",
+                        ppi=ppi,
+                        preferred=preferred,
+                    )
+                except ValueError:
+                    print(f"  {paper_size} + {card_size}: no valid layout in either orientation, skipping")
                     continue
 
+                best_count = len(best_computed.x_pos) * len(best_computed.y_pos)
                 num_cols = len(best_computed.x_pos)
                 num_rows = len(best_computed.y_pos)
 

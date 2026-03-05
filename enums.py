@@ -10,3 +10,10 @@ class Registration(str, Enum):
 class Orientation(str, Enum):
     PORTRAIT = "portrait"
     LANDSCAPE = "landscape"
+
+
+class OrientationMode(str, Enum):
+    """CLI orientation selection. OPTIMIZE tries both and picks the best."""
+    OPTIMIZE = "optimize"
+    LANDSCAPE = Orientation.LANDSCAPE.value
+    PORTRAIT = Orientation.PORTRAIT.value
