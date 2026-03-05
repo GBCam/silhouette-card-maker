@@ -31,7 +31,7 @@ Proxies should be easily identifiable as proxies. You may not use this repo to c
 * [supply list]({{% ref "tutorial/supplies.md" %}})
 * [create_pdf.py]({{% ref "docs/create.md" %}}), a script for laying out your cards in a PDF
 * [offset_pdf.py]({{% ref "docs/offset.md" %}}), a script for adding an offset to your PDF
-* [cutting_templates/](https://github.com/Alan-Cha/silhouette-card-maker/tree/main/cutting_templates), a directory containing Silhoutte Studio cutting templates
+* [cutting_templates/](https://github.com/Alan-Cha/silhouette-card-maker/tree/main/cutting_templates), a directory containing Silhouette Studio cutting templates
 * [calibration/](https://github.com/Alan-Cha/silhouette-card-maker/tree/main/calibration), a directory containing offset calibration sheets
 * [examples/](https://github.com/Alan-Cha/silhouette-card-maker/tree/main/examples), a directory containing sample games
 * [plugins/]({{% ref "plugins/" %}}), a directory containing scripts for streamlining card image acquisition
@@ -85,7 +85,7 @@ The table below shows each card size, sorted by size.
 | `bridge` | **2.25 x 3.5** | 57.15 x 88.9 | 0.6429 |  |
 | `business` | **2 x 3.5** | 50.8 x 88.9 | 0.5714 | Business cards |
 | `domino` | **1.75 x 3.5** | 44.45 x 88.9 | 0.5000 |  |
-| `standard` | 2.48 x 3.465 | **63 x 88** | 0.7159 | AKA `euro_poker`<br>Most standard TCGs<ul><li>**Magic: the Gathering**</li><li>**Pokémon**</li><li>**Lorcana**</li><li>**One Piece**</li><li>**Riftbound**</li></ul> |
+| `standard` | 2.48 x 3.465 | **63 x 88** | 0.7159 | AKA `euro_poker`<br>Most standard TCGs<ul><li>**Magic: The Gathering**</li><li>**Pokémon**</li><li>**Lorcana**</li><li>**One Piece**</li><li>**Riftbound**</li></ul> |
 | `japanese` | 2.323 x 3.386 | **59 x 86** | 0.6860 |  |
 | `credit` | **2.125 x 3.375** | 53.975 x 85.725 | 0.6296 | Credit cards <ul><li>CR80</li><li>ISO/IEC 7810</li></ul> |
 | `euro_business` | 2.165 x 3.346 | **55 x 85** | 0.6471 | AKA `photo`<br>EU business cards<br>K-pop photocards |
