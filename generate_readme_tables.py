@@ -53,7 +53,10 @@ def generate_tables():
         short_side = min(w_mm, h_mm)
         return (-long_side, -short_side, name)
 
-    card_order_alpha = sorted(card_sizes.keys(), key=lambda n: (n[0].isdigit(), n))
+    priority = ["standard", "poker", "bridge"]
+    card_order_alpha = [c for c in priority if c in card_sizes] + sorted(
+        (c for c in card_sizes if c not in priority), key=lambda n: (n[0].isdigit(), n)
+    )
     card_order_by_size = sorted(card_sizes.keys(), key=card_size_sort_key)
 
     # Table 1: Layouts (alphabetical)

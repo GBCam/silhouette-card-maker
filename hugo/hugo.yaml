@@ -1,4 +1,8 @@
 languageCode: en-us
+markup:
+  goldmark:
+    renderer:
+      unsafe: true
 title: Silhouette Card Maker
 theme: hextra
 menu:
