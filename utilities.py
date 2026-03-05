@@ -59,6 +59,8 @@ class CardSizeDef(BaseModel):
     radius: Optional[str] = None
     aliases: Optional[List[str]] = None
 
+
+
 class RegistrationSettings(BaseModel):
     inset: Optional[str] = None
     thickness: Optional[str] = None
@@ -68,6 +70,29 @@ class RegistrationSettings(BaseModel):
 class DefaultSettings(BaseModel):
     card_radius: str
     registration: RegistrationSettings
+
+
+class SpecialtyCardSizeDef(BaseModel):
+    name: Optional[str] = None
+    width: Optional[str] = None
+    height: Optional[str] = None
+    radius: Optional[str] = None
+
+
+class SpecialtyPaperSizeDef(BaseModel):
+    name: Optional[str] = None
+    width: Optional[str] = None
+    height: Optional[str] = None
+
+
+class SpecialtyLayoutDef(BaseModel):
+    card_size: SpecialtyCardSizeDef
+    paper_size: SpecialtyPaperSizeDef
+    orientation: Orientation = Orientation.LANDSCAPE
+    version: int = 1
+    num_rows: Optional[int] = None
+    num_cols: Optional[int] = None
+    registration: Optional[RegistrationSettings] = None
 
 
 class FitMode(str, Enum):
@@ -104,6 +129,7 @@ class LayoutConfig(BaseModel):
     card_sizes: Dict[str, CardSizeDef]
     paper_sizes: Dict[str, PaperSizeDef]
     layouts: Dict[str, Dict[str, CardLayout]]
+    specialty_layouts: Optional[Dict[str, SpecialtyLayoutDef]] = None
 
 
 def load_layout_config() -> LayoutConfig:
@@ -151,6 +177,13 @@ def get_all_paper_size_names(layout_config: LayoutConfig) -> List[str]:
         if paper_def.aliases:
             names.extend(paper_def.aliases)
     return sorted(names, key=lambda n: (n[0].isdigit(), n))
+
+
+def get_all_specialty_layout_names(layout_config: LayoutConfig) -> List[str]:
+    """Return all specialty layout names, sorted alphabetically."""
+    if not layout_config.specialty_layouts:
+        return []
+    return sorted(layout_config.specialty_layouts.keys())
 
 
 def template_name(paper_size: str, card_size: str, version: int) -> str:
@@ -632,6 +665,7 @@ def generate_pdf(
     load_offset: bool,
     label: str,
     show_outline: bool = False,
+    specialty: Optional[str] = None,
 ):
     # Sanity checks for the different directories
     f_path = Path(front_dir_path)
@@ -682,35 +716,79 @@ def generate_pdf(
             raise Exception(f'Cannot use "--only_fronts" with double-sided cards. Remove cards from double-side image directory "{ds_dir_path}".')
 
     layout_config = load_layout_config()
-
-    # Resolve aliases
-    card_size = resolve_card_size_alias(layout_config, card_size)
-    paper_size = resolve_paper_size_alias(layout_config, paper_size)
-
-    # Validate card size
-    if card_size not in layout_config.card_sizes:
-        raise Exception(f'Unsupported card size "{card_size}". Try card sizes: {list(layout_config.card_sizes.keys())}.')
-    card_size_def = layout_config.card_sizes[card_size]
-
-    # Validate paper size
-    if paper_size not in layout_config.paper_sizes:
-        raise Exception(f'Unsupported paper size "{paper_size}". Try paper sizes: {list(layout_config.paper_sizes.keys())}.')
-    paper_size_def = layout_config.paper_sizes[paper_size]
-
-    # Look up orientation and version from the layouts field (per paper+card combination)
-    if paper_size not in layout_config.layouts or card_size not in layout_config.layouts[paper_size]:
-        raise Exception(f'No layout defined for paper "{paper_size}" with card "{card_size}". Add it to layouts.json.')
-    layout_def = layout_config.layouts[paper_size][card_size]
-    orientation = layout_def.orientation
-    version = layout_def.version
-
-    # Effective registration: merge per-layout overrides on top of defaults
     default_reg = layout_config.defaults.registration
-    layout_reg = layout_def.registration
-    lr = layout_reg or RegistrationSettings()
-    effective_inset = lr.inset or default_reg.inset
-    effective_thickness = lr.thickness or default_reg.thickness
-    effective_length = lr.length or default_reg.length
+
+    if specialty:
+        if not layout_config.specialty_layouts or specialty not in layout_config.specialty_layouts:
+            raise Exception(f'Specialty layout "{specialty}" not found.')
+        spec = layout_config.specialty_layouts[specialty]
+
+        # Resolve card size
+        if spec.card_size.name:
+            if spec.card_size.name not in layout_config.card_sizes:
+                raise Exception(f'Card size "{spec.card_size.name}" not found in card_sizes.')
+            base = layout_config.card_sizes[spec.card_size.name]
+            card_size_def = CardSizeDef(
+                width=base.width,
+                height=base.height,
+                radius=spec.card_size.radius or base.radius,
+            )
+        else:
+            card_size_def = CardSizeDef(
+                width=spec.card_size.width,
+                height=spec.card_size.height,
+                radius=spec.card_size.radius,
+            )
+
+        # Resolve paper size
+        if spec.paper_size.name:
+            if spec.paper_size.name not in layout_config.paper_sizes:
+                raise Exception(f'Paper size "{spec.paper_size.name}" not found in paper_sizes.')
+            paper_size_def = layout_config.paper_sizes[spec.paper_size.name]
+        else:
+            paper_size_def = PaperSizeDef(
+                width=spec.paper_size.width,
+                height=spec.paper_size.height,
+            )
+
+        orientation = spec.orientation
+        template = f"{specialty}-v{spec.version}"
+
+        lr = spec.registration or RegistrationSettings()
+        effective_inset = lr.inset or default_reg.inset
+        effective_thickness = lr.thickness or default_reg.thickness
+        effective_length = lr.length or default_reg.length
+
+    else:
+        # Resolve aliases
+        card_size = resolve_card_size_alias(layout_config, card_size)
+        paper_size = resolve_paper_size_alias(layout_config, paper_size)
+
+        # Validate card size
+        if card_size not in layout_config.card_sizes:
+            raise Exception(f'Unsupported card size "{card_size}". Try card sizes: {list(layout_config.card_sizes.keys())}.')
+        card_size_def = layout_config.card_sizes[card_size]
+
+        # Validate paper size
+        if paper_size not in layout_config.paper_sizes:
+            raise Exception(f'Unsupported paper size "{paper_size}". Try paper sizes: {list(layout_config.paper_sizes.keys())}.')
+        paper_size_def = layout_config.paper_sizes[paper_size]
+
+        # Look up orientation and version from the layouts field (per paper+card combination)
+        if paper_size not in layout_config.layouts or card_size not in layout_config.layouts[paper_size]:
+            raise Exception(f'No layout defined for paper "{paper_size}" with card "{card_size}". Add it to layouts.json.')
+        layout_def = layout_config.layouts[paper_size][card_size]
+        orientation = layout_def.orientation
+        version = layout_def.version
+
+        # Effective registration: merge per-layout overrides on top of defaults
+        layout_reg = layout_def.registration
+        lr = layout_reg or RegistrationSettings()
+        effective_inset = lr.inset or default_reg.inset
+        effective_thickness = lr.thickness or default_reg.thickness
+        effective_length = lr.length or default_reg.length
+
+        template = template_name(paper_size, card_size, version)
 
     # Corner exclusion zone = configured mark length + padding constant
     total_exclusion_mm = size_convert.size_to_mm(default_reg.length) + page_manager.REG_PADDING_MM
@@ -731,7 +809,6 @@ def generate_pdf(
     page_height_px = computed.paper_height_px
     x_pos = computed.x_pos
     y_pos = computed.y_pos
-    template = template_name(paper_size, card_size, version)
 
     # Determine the amount of x and y crop
     crop = parse_crop_string(crop_string, card_width_px, card_height_px)

@@ -994,5 +994,24 @@
                 }
             }
         }
+    },
+    "specialty_layouts": {
+        "letter-commander": {
+            "card_size": {
+                "width": "16.86mm",
+                "height": "23.54mm",
+                "radius": "0.80mm"
+            },
+            "paper_size": {
+                "name": "letter"
+            },
+            "orientation": "portrait",
+            "version": 1,
+            "num_rows": 10,
+            "num_cols": 10,
+            "registration": {
+                "length": "6.69mm"
+            }
+        }
     }
 }

@@ -2,7 +2,7 @@ import os
 import re
 
 import click
-from utilities import Registration, FitMode, generate_pdf, load_layout_config, get_all_card_size_names, get_all_paper_size_names
+from utilities import Registration, FitMode, generate_pdf, load_layout_config, get_all_card_size_names, get_all_paper_size_names, get_all_specialty_layout_names
 
 front_directory = os.path.join('game', 'front')
 back_directory = os.path.join('game', 'back')
@@ -14,6 +14,7 @@ default_output_path = os.path.join(output_directory, 'game.pdf')
 layout_config = load_layout_config()
 card_size_choices = get_all_card_size_names(layout_config)
 paper_size_choices = get_all_paper_size_names(layout_config)
+specialty_choices = get_all_specialty_layout_names(layout_config)
 
 @click.command()
 @click.option("--front_dir_path", default=front_directory, show_default=True, help="The path to the directory containing the card fronts.")
@@ -25,6 +26,7 @@ paper_size_choices = get_all_paper_size_names(layout_config)
 @click.option("--card_size", default="standard", type=click.Choice(card_size_choices, case_sensitive=False), show_default=True, help="The desired card size.")
 @click.option("--paper_size", default="letter", type=click.Choice(paper_size_choices, case_sensitive=False), show_default=True, help="The desired paper size.")
 @click.option("--registration", default=Registration.THREE.value, type=click.Choice([t.value for t in Registration], case_sensitive=False), show_default=True, help="The desired registration.")
+@click.option("--specialty", default=None, type=click.Choice(specialty_choices, case_sensitive=False), help="Use a specialty layout. Overrides card_size, paper_size, and registration settings.")
 
 @click.option("--only_fronts", default=False, is_flag=True, help="Only use the card fronts, exclude the card backs.")
 @click.option("--fit", default=FitMode.STRETCH.value, type=click.Choice([t.value for t in FitMode], case_sensitive=False), show_default=True, help="How to fit images to card size. 'stretch' allows distortion, 'crop' preserves aspect ratio by center-cropping.")
@@ -52,6 +54,7 @@ def cli(
     card_size,
     paper_size,
     registration,
+    specialty,
     only_fronts,
     fit,
     crop,
@@ -83,7 +86,8 @@ def cli(
         skip,
         load_offset,
         label,
-        show_outline
+        show_outline,
+        specialty=specialty,
     )
 
 if __name__ == '__main__':
