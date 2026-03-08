@@ -253,7 +253,7 @@ Options:
   --output_images                 Create images instead of a PDF.
   --card_size [standard|poker|bridge|american_mini|bridge_square|business|catan|credit|domino|domino_square|euro_business|euro_mini|euro_poker|japanese|jumbo|micro|mini|mini_american|mini_euro|photo|standard_double|tarot|70mm_square]
                                   The desired card size.  [default: standard]
-  --paper_size [a3|a4|ansi_a|ansi_b|arch_b|letter|tabloid]
+  --paper_size [letter|tabloid|a4|a3|arch_b|ansi_a|ansi_b]
                                   The desired paper size.  [default: letter]
   --registration [3|4]            The desired registration.  [default: 3]
   --only_fronts                   Only use the card fronts, exclude the card

@@ -41,7 +41,7 @@ specialty_choices = get_all_specialty_layout_names(layout_config)
 @click.option("--skip", type=click.IntRange(min=0), multiple=True, help="Skip a card based on its index. Useful for registration issues. Examples: 0, 4.")
 
 @click.option("--label", help="Apply a custom label to each page.")
-@click.option("--show_outline", default=False, is_flag=True, help="Overlay a black outline of the cutting path on each page.")
+@click.option("--show_outline", default=False, is_flag=True, help="Overlay a white outline of the cutting path on each page.")
 
 @click.version_option("1.8.2")
 
