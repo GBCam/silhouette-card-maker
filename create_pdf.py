@@ -43,7 +43,7 @@ specialty_choices = get_all_specialty_layout_names(layout_config)
 @click.option("--label", help="Apply a custom label to each page.")
 @click.option("--show_outline", default=False, is_flag=True, help="Overlay a white outline of the cutting path on each page.")
 
-@click.version_option("1.8.2")
+@click.version_option("2.0.0")
 
 def cli(
     front_dir_path,
