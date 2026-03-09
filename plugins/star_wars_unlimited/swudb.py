@@ -6,7 +6,7 @@ from PIL import Image
 from typing import Tuple
 
 SWUDB_CARD_NUMBER_URL_TEMPLATE = 'https://api.swu-db.com/cards/{set_id}/{set_number}?format=json'
-SWUDB_NAME_URL_TEMPLATE = 'https://swudb.com/api/search/{name}{title}?grouping=cards&sortorder=setno&sortdir=asc'
+SWUDB_NAME_URL_TEMPLATE = 'https://swudb.com/api/search/{name}{title}?grouping=cards&sortorder=setno&sortdir=desc'
 SWUDB_ART_URL_TEMPLATE = 'https://swudb.com/images/cards/{card_art_ref}'
 
 OUTPUT_CARD_ART_FILE_TEMPLATE = '{deck_index}{card_name}{quantity_counter}.png'
@@ -61,17 +61,20 @@ def fetch_card(
     front_img_dir: str,
     back_img_dir: str,
 ):
-    # Fetch card art by querying name and title
+    # Fetch card art by querying name and title.
     title_query = '' if title == '' else f' title:"{title}"'
-    json = request_swudb(SWUDB_NAME_URL_TEMPLATE.format(name=name, title=title_query)).json()
-    art_url_suffix = sub('.+cards/', '', json.get('printings')[0].get('frontImagePath'))
-    front_art = request_swudb(SWUDB_ART_URL_TEMPLATE.format(card_art_ref=art_url_suffix)).content
+    printings = request_swudb(SWUDB_NAME_URL_TEMPLATE.format(name=name, title=title_query)).json().get('printings', [])
+
+    if not printings:
+        raise Exception(f'No printings found for "{name}"')
+
+    printing = printings[0]
+    front_art = request_swudb(SWUDB_ART_URL_TEMPLATE.format(card_art_ref=sub('.+cards/', '', printing.get('frontImagePath')))).content
     back_art = None
 
-    # Get the back art from the path when card is not a Base
-    if json.get('printings')[0].get('backImagePath') != '' and json.get('printings')[0].get('hp') is None:
-        art_url_suffix = sub('.+cards/', '', json.get('printings')[0].get('backImagePath'))
-        back_art = request_swudb(SWUDB_ART_URL_TEMPLATE.format(card_art_ref=art_url_suffix)).content
+    back_image_path = printing.get('backImagePath', '')
+    if back_image_path:
+        back_art = request_swudb(SWUDB_ART_URL_TEMPLATE.format(card_art_ref=sub('.+cards/', '', back_image_path))).content
 
     # Save images based on quantity
     for counter in range(quantity):

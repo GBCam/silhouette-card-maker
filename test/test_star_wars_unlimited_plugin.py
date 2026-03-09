@@ -248,3 +248,33 @@ class TestFullFetchWorkflow:
         for f in files:
             file_path = os.path.join(front_dir, f)
             assert os.path.getsize(file_path) > 0
+
+    def test_fetch_leader_card_both_sides(self, temp_dirs):
+        """Test that leader cards have both front and back images fetched.
+
+        Leader cards are double-sided (Leader side + Leader Unit side).
+        The front image goes to front_dir and the back image goes to double_sided_dir.
+        """
+        front_dir, double_sided_dir = temp_dirs
+
+        deck_text = """Leaders
+1 | Han Solo | Audacious Smuggler"""
+
+        handle_card = get_handle_card(front_dir, double_sided_dir)
+        parse_deck(deck_text, DeckFormat.MELEE, handle_card)
+
+        front_files = os.listdir(front_dir)
+        back_files = os.listdir(double_sided_dir)
+
+        # Front image must exist
+        assert len(front_files) == 1, "Leader card front image was not saved"
+
+        # Back (leader unit) image must exist
+        assert len(back_files) == 1, "Leader card back image was not saved to double_sided directory"
+
+        # Both files must be non-empty images
+        assert os.path.getsize(os.path.join(front_dir, front_files[0])) > 0
+        assert os.path.getsize(os.path.join(double_sided_dir, back_files[0])) > 0
+
+        # Both sides should share the same filename (matched by index/name)
+        assert front_files[0] == back_files[0]
