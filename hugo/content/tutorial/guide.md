@@ -3,6 +3,12 @@ title: 'Cutting Guide'
 weight: 20
 ---
 
+Before starting, please join our [Discord server](https://discord.gg/jhsKmAgbXc).
+
+It can be overwhelming to learn how to use the scripts and the cutting machine. I set up the Discord server to build a community around cutting cards with Silhouette cutting machines so we can all help each other.
+
+If you get stuck or have questions or just want to learn more before diving in, the best place to ask is in the [Discord server](https://discord.gg/jhsKmAgbXc).
+
 ## Prerequisites
 
 ### Printer alignment
@@ -13,32 +19,52 @@ Your printer may have built-in tools for calibration and alignment adjustment. H
 
 ### Cutting settings
 
-Silhouette Studio provides a number of cutting settings, including **blade force**, **cutting speed**, **passes**, and **blade depth**.
+Silhouette Studio provides a number of cutting settings to control your cutting machine.
 
 ![Cutting settings](/images/cutting_settings.png)
 
-Before starting, determine the cutting settings that works best for you and the materials you want to cut.
+There are 4 main cutting settings:
+* **Force** - how hard the machine will push the blade into the material.
+* **Speed** - how fast the machine will move the blade.
+* **Depth** - how much of the blade the machine will expose.
+* **Passes** - how many times the machine will go around a cutting path.
 
-To do this, first create a simple cutting template in Silhouette Studio. Then, set the blade force, cutting speed, and blade depth to something reasonable, but **set passes to 1**. You can have the machine recut again and again to determine the required passes. Change the settings as necessary.
+Before starting, you must determine the cutting settings that are best suited for your materials. Failing to do so can result in at best, poorly cut cards or at worse, holes in the your cutting mat.
+
+My recommendations for determining cutting settings:
+1) Create a simple cutting template in Silhouette Studio.
 
 ![Simple cutting template](/images/cutting_template_simple.png)
 
-The following is a table of working settings from various testers. Do not use these settings blindly. Test conservatively. If not, you risk breaking your machine or cutting through your mat.
+2) Click the `Send` tab to show the cutting settings.
+1) Set the force, speed, and depth to something reasonable. To start, try 25, 25, and 7.
+1) Set passes to 1. By repeating the cutting job, you can determine the required passes.
+1) Load your test sheet the press the `Send` button to start the cutting job.
+1) When the job finishes, **do not eject** the mat. Lift the corner of the test sheet and check the cut. If the cut is clean, you're done. If not, restart the cutting job as many times as necessary. This will determine required passes.
+1) Repeat the entire process. Change the cutting template to cut a different part of your test sheet and experiment with the cutting settings.
 
-| Machine      | Blade          | Card stock     | Lamination  | Force    | Speed | Passes | Depth |
-| ------------ | -------------- | -------------- | ----------- | -------- | ----- | ------ | ----- |
-| Cameo 5      | Autoblade      | 65 lb          | 3 mil       | 30       | 30    | 3      | 7     |
-| Cameo 5      | Autoblade      | 65 lbs/250 gsm | 3 mil       | 30       | 20    | 4      | 7     |
-| Cameo 5      | Autoblade      | 110 lb         | 3 mil       | 33       | 20    | 3      | 8     |
-| Cameo 5      | Autoblade      | 110 lb/199 gsm | 3 mil       | 33       | 30    | 4      | 10    |
-| Cameo 5      | Autoblade      | 220 gsm        | 150 microns | 30       | 26    | 4      | 8     |
-| Cameo 5      | Autoblade      | 250 gsm        | 120 microns | 40       | 10    | 8      | 10    |
-| Cameo 4 Plus | Autoblade      | 110 lb         | 3 mil       | 30       | 30    | 3      | 5     |
-| Cameo 3      | Deep-Cut Blade | 110 lb         | 3 mil       | 33       | 5     | 5      | 19    |
+Unfortunately, there's no easy way to get around this. You must experiment. You should not copy someone else's settings. Even if we have the same machine, same blade, and same cutting materials, we will need different cutting settings. Learning to adjust cutting settings is a part of using cutting machines.
+
+As a reference, here are my settings for my Cameo 5 with an autoblade and the recommended cardstock and laminate from the [supply list](supplies.md):
+* Force: 35
+* Speed: 25
+* Depth: 7
+* Passes: 4
+
+You can try these settings but you'll likely need to make adjustments for your set up. If you'd like to see settings for other machines and other setups, you can search for them in our [Discord server](https://discord.gg/jhsKmAgbXc).
+
+Here are some other tips:
+* Instead of creating a simple cutting template, you can also use one from [cutting_templates/](https://github.com/Alan-Cha/silhouette-card-maker/tree/main/cutting_templates). However, I recommend disabling registration marks and cutting one card at a time. This way, you can do multiple tests with one sheet. To disable registration marks, open the `Print & Cut` sidebar panel and uncheck `Enable Registration Marks`. To cut one card at a time, manually select and delete all other cutting paths.
+* You may be tempted to use max force and/or max speed to cut as quickly as possible. You can certainly work up to it and try but your machine may start skipping. If your machine skips, you need to power cycle it so it can rehome.
+* You may think that increasing depth will help you cut deeper but that's rarely the case. Depth is just a max limit to how deep your machine can cut. Here is an analogy: it does not matter whether you have a 3-inch knife or a 3-foot katana if you only have the strength to cut 1 inch deep. In this case, the blade length is depth and strength is force, speed, and passes.
+* To go with the previous point, I would prioritize the cutting settings in the following order: passes, force, speed, and depth.
+* If the edges of your laminated cards are rippled, try reducing force. This happens when the blade is too dull or the machine is pushing the blade too hard and the lamination is ripped through instead of sliced through.
 
 ## Instructions
 
-Before starting, join our [Discord server](https://discord.gg/jhsKmAgbXc). If you have any questions, you can ask them in the `#troubleshooting` channel.
+If you run into any issues, you can get help in our [Discord server](https://discord.gg/jhsKmAgbXc). Please ask in the `#troubleshooting` channel and include pictures and videos.
+
+I also recommend searching for your issue in the chat history. There are hundreds of resolved `#troubleshooting` posts so it's likely that someone has encoutered your problem before and fixed it.
 
 ### Set up environment
 
@@ -228,7 +254,7 @@ Now you're ready to play with your cards!
 
 ## Next Steps
 
-Please join our [Discord server](https://discord.gg/jhsKmAgbXc)! While you're there, go to `#roles` and give yourself the `SCM Graduate` role for completing the tutorial! Share some pictures in `#photo-showcase` as well!
+Share your success in our [Discord server](https://discord.gg/jhsKmAgbXc)! While you're there, go to the `Channels & Roles` tab and give yourself the `SCM Graduate` role for completing the tutorial! Please share pictures in `#photo-showcase` as well!
 
 As mentioned previously, the `create_pdf.py` script offers many [configuration options]({{% ref "../docs/create.md" %}}). `create_pdf.py` can make double-sided cards, use different paper sizes, cut various card sizes, and more!
 
