@@ -15,12 +15,12 @@ If you're on macOS or Linux, open **Terminal**. If you're on Windows, open **Pow
 
 Create and start your virtual Python environment and install Python dependencies if you have not done so already. See [here]({{% ref "../docs/create/#basic-usage" %}}) for more information.
 
-Put your decklist into a text file in `game/decklist`. In this example, the filename is `deck.txt` and the decklist format is Curiosa (`curiosa`).
+Put your decklist into a text file in `game/decklist`. In this example, the filename is `deck.txt` and the decklist format is Curiosa (`curiosa_url`).
 
 Run the script.
 
 ```sh
-python plugins/sorcery_contested_realm/fetch.py game/decklist/deck.txt curiosa
+python plugins/sorcery_contested_realm/fetch.py game/decklist/deck.txt curiosa_url
 ```
 
 Now you can create the PDF using [`create_pdf.py`]({{% ref "../docs/create" %}}).
@@ -28,7 +28,7 @@ Now you can create the PDF using [`create_pdf.py`]({{% ref "../docs/create" %}})
 ## CLI Options
 
 ```
-Usage: fetch.py [OPTIONS] DECK_PATH {curiosa}
+Usage: fetch.py [OPTIONS] DECK_PATH {curiosa_url}
 
 Options:
   --help  Show this message and exit.
@@ -36,10 +36,16 @@ Options:
 
 ## Formats
 
-### `curiosa`
+### `curiosa_url`
 
-[Curiosa](https://curiosa.io) format.
+Curiosa URL format uses the full URL of a deck from [Curiosa](https://curiosa.io).
 
 ```
-cme5x329q00k9jo04ouuycsek
+https://curiosa.io/decks/cme5x329q00k9jo04ouuycsek
+```
+
+You can also use the URL directly in the command line. Note the single quotes around the URL.
+
+```sh
+python plugins/sorcery_contested_realm/fetch.py 'https://curiosa.io/decks/cme5x329q00k9jo04ouuycsek' curiosa_url
 ```

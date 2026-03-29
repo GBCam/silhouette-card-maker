@@ -36,7 +36,6 @@ def parse_astra(deck_text: str, handle_card: Callable) -> None:
 
             parts = [f'Index: {index}', f'quantity: {quantity}']
             if name: parts.append(f'name: {name}')
-            if image_url: parts.append(f'image url: {image_url}')
             print(', '.join(parts))
 
             try:

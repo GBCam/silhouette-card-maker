@@ -16,9 +16,39 @@ from plugins.sorcery_contested_realm.deck_formats import DeckFormat, parse_deck
 class TestDeckFormatEnum:
     """Test the DeckFormat enum values."""
 
-    def test_curiosa_format_value(self):
-        """Test that the CURIOSA format has the expected value."""
-        assert DeckFormat.CURIOSA.value == 'curiosa'
+    def test_curiosa_url_format_value(self):
+        """Test that the CURIOSA_URL format has the expected value."""
+        assert DeckFormat.CURIOSA_URL.value == 'curiosa_url'
+
+
+class TestCuriosaurlFormat:
+    """Test Curiosa deck URL format parsing."""
+
+    def test_share_url_pattern_matches(self):
+        """Test that valid Curiosa deck URLs are detected."""
+        import re
+        pattern = re.compile(r'https://curiosa\.io/decks/(\w+)')
+
+        assert pattern.match("https://curiosa.io/decks/cme5x329q00k9jo04ouuycsek")
+        assert pattern.match("https://curiosa.io/decks/abc123")
+
+    def test_share_url_pattern_rejects_invalid(self):
+        """Test that invalid lines are rejected."""
+        import re
+        pattern = re.compile(r'https://curiosa\.io/decks/(\w+)')
+
+        assert not pattern.match("")
+        assert not pattern.match("cme5x329q00k9jo04ouuycsek")  # bare ID, no URL
+        assert not pattern.match("https://example.com/decks/cme5x329q00k9jo04ouuycsek")
+
+    def test_share_url_extracts_deck_id(self):
+        """Test that the deck ID is correctly extracted from a URL."""
+        import re
+        pattern = re.compile(r'https://curiosa\.io/decks/(\w+)')
+
+        match = pattern.match("https://curiosa.io/decks/cme5x329q00k9jo04ouuycsek")
+        assert match is not None
+        assert match.group(1) == "cme5x329q00k9jo04ouuycsek"
 
 
 # --- Integration Tests ---
@@ -57,13 +87,13 @@ class TestFullFetchWorkflow:
         shutil.rmtree(front_dir)
 
     def test_fetch_deck_from_curiosa(self, temp_dirs):
-        """Test fetching cards from a Curiosa deck ID."""
+        """Test fetching cards from a Curiosa deck URL."""
         front_dir = temp_dirs
 
-        deck_id = "cme5x329q00k9jo04ouuycsek"
+        deck_url = "https://curiosa.io/decks/cme5x329q00k9jo04ouuycsek"
 
         handle_card = get_handle_card(front_dir)
-        parse_deck(deck_id, DeckFormat.CURIOSA, handle_card)
+        parse_deck(deck_url, DeckFormat.CURIOSA_URL, handle_card)
 
         files = os.listdir(front_dir)
         assert len(files) >= 1
