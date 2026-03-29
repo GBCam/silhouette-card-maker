@@ -1,3 +1,4 @@
+import math
 import ezdxf
 import re
 import size_convert
@@ -8,56 +9,35 @@ from typing import List
 ezdxf.options.write_fixed_meta_data_for_testing = True
 
 def add_rounded_rectangle(msp, x, y, width, height, radius):
-    """Add a rounded rectangle as separate LINE + ARC entities (screen Y-down coords).
+    """Add a rounded rectangle as a single closed LWPOLYLINE with bulge factors.
 
-    Uses separate LINE and ARC entities, NOT a closed polyline (POLYLINE2D/LWPOLYLINE).
+    Uses LWPOLYLINE with bulge-encoded arcs so Silhouette Studio sees one
+    connected path and renders smooth line-to-arc transitions.
 
-    ENTITY TYPE INVESTIGATION SUMMARY
-    ----------------------------------
-    Two conflicting requirements exist for Silhouette Studio (SS) DXF import:
-      (A) Correct image fill orientation (not vertically flipped)
-      (B) Individually selectable card paths after import
+    NOTE: SS vertically flips image fills for closed polyline entities. These
+    DXF files are cutting templates only, so fill orientation is irrelevant.
 
-    POLYLINE2D / LWPOLYLINE (single entity per card):
-      - Satisfies (B): each card is one entity, individually selectable after ungrouping.
-      - Fails (A): image fills appear vertically flipped in SS, regardless of winding
-        direction (CCW/CW), starting vertex, or Y-coordinate convention.
-        Tested exhaustively across ~10 variants with no fix found.
-
-    Separate LINE + ARC entities (8 entities per card):
-      - Satisfies (A): correct image fill orientation.
-      - Fails (B) when 2+ cards are present: SS merges all LINE/ARC entities from the
-        file into a single compound path, making cards inseparable.
-        Tested with: same layer, per-card DXF layers, DXF GROUP entities -- all merged.
-        A single-card DXF works fine (1 card = 1 selectable shape).
-
-    DXF layers and DXF GROUP entities have no effect on SS selectability.
-    HATCH entities (LINE+ARC edge path) are invisible/ignored by SS entirely.
-
-    SOLUTION
-    --------
-    Use LINE + ARC entities (correct fill orientation), and in dxf_to_studio3.py
-    use Ctrl+Shift+E ("Release Compound Path") after importing, which breaks the
-    merged compound shape into individually selectable card paths.
+    Bulge factor for a 90° CCW arc = tan(22.5°) ≈ 0.4142.
+    Positive bulge = CCW arc (left of travel direction).
     """
     # Convert screen Y-down (origin top-left) to DXF Y-up (origin bottom-left)
     y = -y - height
 
-    bl = (x + radius, y + radius)
-    br = (x + width - radius, y + radius)
-    tr = (x + width - radius, y + height - radius)
-    tl = (x + radius, y + height - radius)
+    BULGE = math.tan(math.radians(22.5))  # 90° CCW corner arc
 
-    msp.add_line((bl[0], y),         (br[0], y))           # Bottom edge
-    msp.add_line((x + width, br[1]), (x + width, tr[1]))   # Right edge
-    msp.add_line((tr[0], y + height),(tl[0], y + height))  # Top edge
-    msp.add_line((x, tl[1]),         (x, bl[1]))            # Left edge
-
-    # Corner arcs, CCW in DXF Y-up convention
-    msp.add_arc(center=br, radius=radius, start_angle=270, end_angle=360)  # BR
-    msp.add_arc(center=tr, radius=radius, start_angle=0,   end_angle=90)   # TR
-    msp.add_arc(center=tl, radius=radius, start_angle=90,  end_angle=180)  # TL
-    msp.add_arc(center=bl, radius=radius, start_angle=180, end_angle=270)  # BL
+    # Vertices: arc-start vertices carry the bulge value; edge-end vertices carry none.
+    # Format: (x, y, bulge) — omitting bulge defaults to 0 (straight segment).
+    points = [
+        (x + width - radius, y,              BULGE),  # BR arc start
+        (x + width,          y + radius),             # end of BR arc / bottom of right edge
+        (x + width,          y + height - radius, BULGE),  # TR arc start
+        (x + width - radius, y + height),             # end of TR arc / right of top edge
+        (x + radius,         y + height,     BULGE),  # TL arc start
+        (x,                  y + height - radius),    # end of TL arc / top of left edge
+        (x,                  y + radius,     BULGE),  # BL arc start
+        (x + radius,         y),                      # end of BL arc / left of bottom edge
+    ]
+    msp.add_polyline2d(points, format="xyb", close=True)
 
 
 # Create new DXF document

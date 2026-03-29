@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": "1.1.0",
   "silhouette_studio_version": "5.0.402ss",
   "window": {
     "x": 0,
@@ -160,6 +160,20 @@
       "relative": {
         "x": 1795,
         "y": 517
+      }
+    },
+    "cutting_path_menu": {
+      "name": "Cutting path right-click target",
+      "relative": {
+        "x": 951,
+        "y": 581
+      }
+    },
+    "context_flip_vertically": {
+      "name": "Flip Vertically option in context menu",
+      "relative": {
+        "x": 1025,
+        "y": 309
       }
     }
   },

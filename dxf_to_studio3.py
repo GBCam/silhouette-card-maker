@@ -278,7 +278,7 @@ class SilhouetteAutomation:
         pyautogui.press('n')  # Don't save
         time.sleep(self.action_delay)
 
-    def click(self, x: int, y: int):
+    def click(self, x: int, y: int, button: str = 'left'):
         """Click at window-relative coordinates.
 
         Queries the current window position so clicks remain correct
@@ -287,10 +287,10 @@ class SilhouetteAutomation:
         win_x, win_y = self.get_window_origin()
         abs_x = win_x + x
         abs_y = win_y + y
-        pyautogui.click(abs_x, abs_y)
+        pyautogui.click(abs_x, abs_y, button=button)
         time.sleep(self.action_delay)
 
-    def click_element(self, element_id: str):
+    def click_element(self, element_id: str, button: str = 'left'):
         """
         Click a calibrated element by ID.
 
@@ -300,7 +300,7 @@ class SilhouetteAutomation:
             elem = self.calibration["elements"][element_id]
             x = elem["relative"]["x"]
             y = elem["relative"]["y"]
-            self.click(x, y)
+            self.click(x, y, button=button)
             return True
         else:
             print(f"Warning: Element '{element_id}' not calibrated. Run 'calibrate' first.")
@@ -399,8 +399,11 @@ class SilhouetteAutomation:
     # -------------------------------------------------------------------------
 
     def setup_page(self, mat: CuttingMat, width_in: float, height_in: float, orientation: Orientation):
-        """Configure page setup: cutting mat, media size, orientation, and dimensions.
+        """Configure page setup in four steps: cutting mat, mat dimensions, orientation, paper dimensions.
 
+        Sets the media size to the cutting mat's maximum dimensions before
+        applying orientation, then sets the actual paper dimensions afterward.
+        This order makes the portrait/landscape buttons behave predictably.
         Opens the Page Setup panel once and performs all configuration
         in sequence to avoid toggling the panel open/closed.
 
@@ -416,14 +419,20 @@ class SilhouetteAutomation:
         self.click_element("page_setup")
         time.sleep(ACTION_DELAY)
 
-        # Select cutting mat
+        # Select cutting mat (12x12 or 12x24).
         self.click_element("cutting_mat_dropdown")
         if mat == CuttingMat.MAT_12X12:
             self.click_element("cutting_mat_12x12")
         else:
             self.click_element("cutting_mat_12x24")
 
-        # Select matching media size
+        # Set media size to the cutting mat's maximum dimensions before applying
+        # orientation. The portrait/landscape buttons behave unpredictably depending
+        # on the current media size — they may swap dimensions or do nothing.
+        # Using a known square (or max-landscape) starting size makes the
+        # orientation button reliably produce the expected result.
+        # Note: the 12x24 option only appears in the dropdown when the 12x24
+        # cutting mat is selected.
         self.click_element("media_size_dropdown")
         if mat == CuttingMat.MAT_12X12:
             self.click_element("media_size_12x12")
@@ -436,7 +445,7 @@ class SilhouetteAutomation:
         else:
             self.click_element("landscape_button")
 
-        # Set custom dimensions
+        # Set actual paper dimensions
         self.click_element("media_width_field")
         type_in_field(f"{width_in:.2f}")
 
@@ -463,28 +472,43 @@ class SilhouetteAutomation:
         self.click_element("transform")
         time.sleep(ACTION_DELAY)
         self.click_element("center_to_page")
+        self.ungroup_all()
 
-    # def ungroup_all(self):
-    #     """Select all and ungroup (Ctrl+A, Ctrl+Shift+G)."""
-    #     print("  Ungrouping...")
-    #     pyautogui.hotkey('ctrl', 'a')
-    #     time.sleep(self.action_delay)
-    #     pyautogui.hotkey('ctrl', 'shift', 'g')
-    #     time.sleep(self.action_delay)
-
-    def release_compound_path(self):
-        """Select all and release compound path (Ctrl+A, Ctrl+Shift+E).
-
-        When a DXF is imported with LINE+ARC entities, Silhouette Studio merges
-        all entities into a single compound path regardless of DXF layers or groups.
-        Ctrl+Shift+E releases the compound path into individually selectable card paths.
-        This must be called after ungrouping so the compound path is the selected object.
-        """
-        print("  Releasing compound path...")
+    def ungroup_all(self):
+        """Select all and ungroup (Ctrl+A, Ctrl+Shift+G)."""
+        print("  Ungrouping...")
         pyautogui.hotkey('ctrl', 'a')
         time.sleep(self.action_delay)
-        pyautogui.hotkey('ctrl', 'shift', 'e')
+        pyautogui.hotkey('ctrl', 'shift', 'g')
         time.sleep(self.action_delay)
+
+    def flip_vertically(self):
+        """Select all objects and flip them vertically via the right-click context menu.
+
+        POLYLINE entities (used for smooth rounded-rectangle cutting paths) are
+        imported by Silhouette Studio with a vertical flip. This corrects the
+        orientation by selecting all objects and applying Flip Vertically through
+        the cutting path right-click context menu.
+        """
+        print("  Flipping vertically...")
+        pyautogui.hotkey('ctrl', 'a')
+        time.sleep(self.action_delay)
+        self.click_element("cutting_path_menu", button='right')
+        self.click_element("context_flip_vertically")
+
+    # def release_compound_path(self):
+    #     """Select all and release compound path (Ctrl+A, Ctrl+Shift+E).
+
+    #     When a DXF is imported with LINE+ARC entities, Silhouette Studio merges
+    #     all entities into a single compound path regardless of DXF layers or groups.
+    #     Ctrl+Shift+E releases the compound path into individually selectable card paths.
+    #     This must be called after ungrouping so the compound path is the selected object.
+    #     """
+    #     print("  Releasing compound path...")
+    #     pyautogui.hotkey('ctrl', 'a')
+    #     time.sleep(self.action_delay)
+    #     pyautogui.hotkey('ctrl', 'shift', 'e')
+    #     time.sleep(self.action_delay)
 
     # -------------------------------------------------------------------------
     # Registration Marks
@@ -533,10 +557,9 @@ class SilhouetteAutomation:
         1. Open DXF
         2. Page setup (cutting mat, media size, orientation, dimensions)
         3. Center paths
-        4. Set registration marks
-        5. Ungroup cutting paths
-        6. Release compound path (Ctrl+Shift+E) so each card is individually selectable
-        7. Save as .studio3
+        4. Flip vertically (corrects vertical flip from POLYLINE DXF import)
+        5. Set registration marks
+        6. Save as .studio3
 
         Args:
             input_dxf: Path to the input DXF file.
@@ -566,11 +589,12 @@ class SilhouetteAutomation:
         if center:
             self.center_to_page()
 
+        # POLYLINE entities are vertically flipped on import into Silhouette Studio.
+        # Flip vertically after centering to correct the orientation.
+        self.flip_vertically()
+
         if registration:
             self.set_registration_marks(registration)
-
-        self.release_compound_path()
-        # self.ungroup_all()
 
         self.save_as(output_studio3)
 
@@ -641,13 +665,13 @@ CALIBRATION_ELEMENTS = [
     {
         "id": "media_size_12x12",
         "name": "12x12 media size option",
-        "description": "The media size dropdown should be open. "
+        "description": "The 12x12 cutting mat must be selected and the media size dropdown must be open. "
                        "Click the 12\" x 12\" option."
     },
     {
         "id": "media_size_12x24",
         "name": "12x24 media size option",
-        "description": "Open the media size dropdown again and "
+        "description": "Select the 12x24 cutting mat first, then open the media size dropdown again and "
                        "click the 12\" x 24\" option."
     },
     {
@@ -708,6 +732,19 @@ CALIBRATION_ELEMENTS = [
         "id": "regmark_inset_field",
         "name": "Registration mark inset input field",
         "description": "The numerical input field for mark inset"
+    },
+    # --- Flip Vertically (right-click context menu) ---
+    {
+        "id": "cutting_path_menu",
+        "name": "Cutting path right-click target",
+        "description": "Click on any cutting path on the canvas "
+                       "(used as the target for the right-click context menu)."
+    },
+    {
+        "id": "context_flip_vertically",
+        "name": "Flip Vertically option in context menu",
+        "description": "Right-click a cutting path to open the context menu. "
+                       "Click the 'Flip Vertically' option."
     },
 ]
 
