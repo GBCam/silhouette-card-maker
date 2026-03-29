@@ -13,7 +13,7 @@ Navigate to the root directory as plugins are not meant to be run in the plugins
 
 If you're on macOS or Linux, open **Terminal**. If you're on Windows, open **PowerShell**.
 
-Create and start your virtual Python environment and install Python dependencies if you have not done so already. See [here]({{% ref "../docs/create/#basic-usage" %}}) for more information.
+Create and start your virtual Python environment and install Python dependencies if you have not done so already. See [here](../docs/create/#basic-usage) for more information.
 
 Put your decklist into a text file in `game/decklist`. In this example, the filename is `deck.ydk` and the decklist format is YDK (`ydk`).
 
@@ -23,7 +23,7 @@ Run the script.
 python plugins/yugioh/fetch.py game/decklist/deck.ydk ydk
 ```
 
-Now you can create the PDF using [`create_pdf.py`]({{% ref "../docs/create" %}}). You should use `--card_size japanese` for the correct card size.
+Now you can create the PDF using [`create_pdf.py`](../docs/create). You should use `--card_size japanese` for the correct card size.
 
 ## CLI Options
 

@@ -2,7 +2,7 @@
 title: 'Create Templates'
 ---
 
-This project already supports many [cutting templates]({{% ref "../_index.md#supported-sizes" %}}) but if you'd like to add your own, here's how.
+This project already supports many [cutting templates](../#supported-sizes) but if you'd like to add your own, here's how.
 
 Before a cutting template can be used, the card size must exist in [`assets/layouts.json`](https://github.com/Alan-Cha/silhouette-card-maker/blob/main/assets/layouts.json). This is the source of truth for all card and paper sizes — `create_pdf.py` reads it to place registration marks and lay out the card grid, so a template without a matching entry won't work.
 

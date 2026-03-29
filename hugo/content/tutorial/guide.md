@@ -15,7 +15,7 @@ If you get stuck or have questions or just want to learn more before diving in, 
 
 If you plan on having card backs and if you plan on making double faced cards, then you need to ensure that printer can print with good front and back alignment. Otherwise, your card fronts and backs may have an offset.
 
-Your printer may have built-in tools for calibration and alignment adjustment. However, it doesn't, you can use [`offset_pdf.py`]({{% ref "../docs/offset.md" %}}) to compensate for the printer's offset.
+Your printer may have built-in tools for calibration and alignment adjustment. However, it doesn't, you can use [`offset_pdf.py`](../docs/offset) to compensate for the printer's offset.
 
 ### Cutting settings
 
@@ -45,7 +45,7 @@ My recommendations for determining cutting settings:
 
 Unfortunately, there's no easy way to get around this. You must experiment. You should not copy someone else's settings. Even if we have the same machine, same blade, and same cutting materials, we will need different cutting settings. Learning to adjust cutting settings is a part of using cutting machines.
 
-As a reference, here are my settings for my Cameo 5 with an autoblade and the recommended cardstock and laminate from the [supply list](supplies.md):
+As a reference, here are my settings for my Cameo 5 with an autoblade and the recommended cardstock and laminate from the [supply list](supplies):
 * Force: 35
 * Speed: 25
 * Depth: 7
@@ -156,7 +156,7 @@ Put card front images into the `game/front/` folder. Then, put a card back image
 > [!TIP]
 > You can use the game, Zero sumZ, as an example. Simply move the [game assets](https://github.com/Alan-Cha/silhouette-card-maker/tree/main/examples/ZERO%20SUMZ) to the appropriate image folders.
 >
-> You can also use a [plugin]({{% ref "../plugins" %}}) to populate the image folders. Many games, including [Magic: The Gathering]({{% ref "../plugins/mtg.md" %}}), [Pokemon]({{% ref "../plugins/pokemon.md" %}}), [Yu-Gi-Oh!]({{% ref "../plugins/yugioh.md" %}}), [Riftbound]({{% ref "../plugins/riftbound.md" %}}), [One Piece]({{% ref "../plugins/one_piece.md" %}}), and [Lorcana]({{% ref "../plugins/lorcana.md" %}}), are currently supported.
+> You can also use a [plugin](../plugins) to populate the image folders. Many games, including [Magic: The Gathering](../plugins/mtg), [Pokemon](../plugins/pokemon), [Yu-Gi-Oh!](../plugins/yugioh), [Riftbound](../plugins/riftbound), [One Piece](../plugins/one_piece), and [Lorcana](../plugins/lorcana), are currently supported.
 
 Generate the PDF with the following:
 
@@ -176,7 +176,7 @@ python create_pdf.py --paper_size a4
 {{< /tabs >}}
 
 > [!TIP]
->`create_pdf.py` has many options such as **paper and card size** and **double-sided cards**. To learn more, see [here]({{% ref "../docs/create.md" %}}).
+>`create_pdf.py` has many options such as **paper and card size** and **double-sided cards**. To learn more, see [here](../docs/create).
 
 You can find the PDF in `game/output/game.pdf` and it should look similar to the following:
 
@@ -256,8 +256,8 @@ Now you're ready to play with your cards!
 
 Share your success in our [Discord server](https://discord.gg/jhsKmAgbXc)! While you're there, go to the `Channels & Roles` tab and give yourself the `SCM Graduate` role for completing the tutorial! Please share pictures in `#photo-showcase` as well!
 
-As mentioned previously, the `create_pdf.py` script offers many [configuration options]({{% ref "../docs/create.md" %}}). `create_pdf.py` can make double-sided cards, use different paper sizes, cut various card sizes, and more!
+As mentioned previously, the `create_pdf.py` script offers many [configuration options](../docs/create). `create_pdf.py` can make double-sided cards, use different paper sizes, cut various card sizes, and more!
 
-If you're interested in making proxies for TCGs, try using a [plugin]({{% ref "../plugins" %}}). Currently, we have support for many games including [Magic: The Gathering]({{% ref "../plugins/mtg.md" %}}), [Pokemon]({{% ref "../plugins/pokemon.md" %}}), [Yu-Gi-Oh!]({{% ref "../plugins/yugioh.md" %}}), [Riftbound]({{% ref "../plugins/riftbound.md" %}}), [One Piece]({{% ref "../plugins/one_piece.md" %}}), and [Lorcana]({{% ref "../plugins/lorcana.md" %}}). All you need to do is provide a decklist and the plugin will automatically fetch the images for you!
+If you're interested in making proxies for TCGs, try using a [plugin](../plugins). Currently, we have support for many games including [Magic: The Gathering](../plugins/mtg), [Pokemon](../plugins/pokemon), [Yu-Gi-Oh!](../plugins/yugioh), [Riftbound](../plugins/riftbound), [One Piece](../plugins/one_piece), and [Lorcana](../plugins/lorcana). All you need to do is provide a decklist and the plugin will automatically fetch the images for you!
 
 Thanks and have fun cutting cards!

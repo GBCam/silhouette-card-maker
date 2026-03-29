@@ -25,10 +25,10 @@ Don't believe me? Watch me cut **104 cards in 26 minutes** without breaking a sw
 
 In this tutorial, I'll go over everything you need to know including:
 
-* [Estimated costs]({{% ref "costs.md" %}})
-* [Equipment and supply list]({{% ref "supplies.md" %}})
-* [Primer on Silhouette cutting machines]({{% ref "primer.md" %}})
-* [Step by step cutting guide]({{% ref "guide.md" %}})
-* [Troubleshooting]({{% ref "troubleshooting.md" %}})
+* [Estimated costs](costs)
+* [Equipment and supply list](supplies)
+* [Primer on Silhouette cutting machines](primer)
+* [Step by step cutting guide](guide)
+* [Troubleshooting](troubleshooting)
 
-When you're ready, start with [Estimated costs of DIY cards]({{% ref "costs.md" %}}).
+When you're ready, start with [Estimated costs of DIY cards](costs).

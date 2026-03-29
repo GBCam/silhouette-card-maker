@@ -10,7 +10,7 @@ Ever wanted to make your own custom card game but without the hassle of a craft 
 
 You can do it all with the press of a button and a cutting machine! And I can show you how!
 
-If this is your first time here, check out the [tutorial]({{% ref "tutorial/" %}})! Please join our [Discord server](https://discord.gg/jhsKmAgbXc) too!
+If this is your first time here, check out the [tutorial](tutorial/)! Please join our [Discord server](https://discord.gg/jhsKmAgbXc) too!
 
 ## Demo
 
@@ -27,14 +27,14 @@ Proxies should be easily identifiable as proxies. You may not use this repo to c
 ## Contents
 
 * [code repository](https://github.com/Alan-Cha/silhouette-card-maker)
-* [tutorial]({{% ref "tutorial/" %}})
-* [supply list]({{% ref "tutorial/supplies.md" %}})
-* [create_pdf.py]({{% ref "docs/create.md" %}}), a script for laying out your cards in a PDF
-* [offset_pdf.py]({{% ref "docs/offset.md" %}}), a script for adding an offset to your PDF
+* [tutorial](tutorial/)
+* [supply list](tutorial/supplies)
+* [create_pdf.py](docs/create), a script for laying out your cards in a PDF
+* [offset_pdf.py](docs/offset), a script for adding an offset to your PDF
 * [cutting_templates/](https://github.com/Alan-Cha/silhouette-card-maker/tree/main/cutting_templates), a directory containing Silhouette Studio cutting templates
 * [calibration/](https://github.com/Alan-Cha/silhouette-card-maker/tree/main/calibration), a directory containing offset calibration sheets
 * [examples/](https://github.com/Alan-Cha/silhouette-card-maker/tree/main/examples), a directory containing sample games
-* [plugins/]({{% ref "plugins/" %}}), a directory containing scripts for streamlining card image acquisition
+* [plugins/](plugins/), a directory containing scripts for streamlining card image acquisition
 
 
 ## Supported Sizes

@@ -71,15 +71,15 @@ Get your PDF at `game/output/game.pdf`.
 
 Plugins streamline the process for acquiring card images for various games.
 
-The [Magic: The Gathering]({{% ref "../plugins/mtg" %}}) plugin supports various decklist formats, including **MTGA**, **MTGO**, **Archidekt**, **Deckstats**, **Moxfield**, and **Scryfall**.
+The [Magic: The Gathering](../plugins/mtg) plugin supports various decklist formats, including **MTGA**, **MTGO**, **Archidekt**, **Deckstats**, **Moxfield**, and **Scryfall**.
 
-The [Yu-Gi-Oh!]({{% ref "../plugins/yugioh" %}}) plugin supports **YDK** and **YDKE** formats.
+The [Yu-Gi-Oh!](../plugins/yugioh) plugin supports **YDK** and **YDKE** formats.
 
-The [Lorcana]({{% ref "../plugins/lorcana" %}}) plugin supports **Dreamborn** format.
+The [Lorcana](../plugins/lorcana) plugin supports **Dreamborn** format.
 
-The [Riftbound plugin]({{% ref "../plugins/riftbound" %}}) supports **Tabletop Simulator**, **Pixelborn**, and **Piltover Archive** formats.
+The [Riftbound plugin](../plugins/riftbound) supports **Tabletop Simulator**, **Pixelborn**, and **Piltover Archive** formats.
 
-The [Altered plugin]({{% ref "../plugins/altered" %}}) supports **Ajordat** format.
+The [Altered plugin](../plugins/altered) supports **Ajordat** format.
 
 ## Double-Sided Cards
 
@@ -180,7 +180,7 @@ Crop the borders of the front and double-sided images by 3 mm on all sides. This
 python create_pdf.py --crop 3mm
 ```
 
-Remove the [rounded corners](#corner-artifacts) from the PDF and load the saved offset from [`offset_pdf.py`]({{% ref "offset.md" %}}).
+Remove the [rounded corners](#corner-artifacts) from the PDF and load the saved offset from [`offset_pdf.py`](offset).
 
 ```sh
 python create_pdf.py --extend_corners 10 --load_offset
