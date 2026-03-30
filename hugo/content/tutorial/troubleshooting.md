@@ -15,13 +15,13 @@ If I had to say anything, I would say this combination is only marginally thicke
 
 ## Can I make double-sided cards?
 
-Yes, the `create_pdf.py` script has many other features including laying out double-sided cards. To see the full documentation, please see [here](../docs/create#double-sided-cards).
+Yes, the `create_pdf.py` script has many other features including laying out double-sided cards. To see the full documentation, please see [here]({{% ref "../docs/create.md#double-sided-cards" %}}).
 
 Long story short, put the fronts in the `game/front/` folder and the backs in the `game/double_sided/` folder. The filenames (and file extensions) must match for each pair. Then, simply run `create_pdf.py` as usual.
 
 ## Do you have printer recommendations?
 
-See the [Equipment](supplies#equipment) section.
+See the [Equipment]({{% ref "supplies.md#equipment" %}}) section.
 
 ## Why are my card delaminating?
 
@@ -64,7 +64,7 @@ The second solution to apply opaque tape where the registration marks would be a
 
 ## Why didn't my machine cut all the way through?
 
-Did you configure your cutting settings? The cutting templates do not contain cutting settings. You must add your settings manually. To learn more, see [here](guide#cutting-settings). 
+Did you configure your cutting settings? The cutting templates do not contain cutting settings. You must add your settings manually. To learn more, see [here]({{% ref "guide.md#cutting-settings" %}}). 
 
 If you configured you cutting settings, then try adjusting your settings by adding more force or more passes. If you are still having issues, try using a new blade and/or mat.
 
@@ -84,7 +84,7 @@ Your machine uses two pinch rollers to grip the mat. Check if that is the case. 
 
 ## Why are my cards offset?
 
-If either the fronts or the backs are offset, then there's most likely an issue with your printer alignment. Refer to your printer's instruction manual and try to recalibrate it. If there's no way to change the printer's settings, try using [offset.py](../docs/offset) to compensate for the offset.
+If either the fronts or the backs are offset, then there's most likely an issue with your printer alignment. Refer to your printer's instruction manual and try to recalibrate it. If there's no way to change the printer's settings, try using [offset.py]({{% ref "../docs/offset.md" %}}) to compensate for the offset.
 
 If both the fronts and backs are offset, then there may be an issue with registraion. Ensure that you are printing with the right scale and cutting with the right cutting template, and ensure that there's nothing that can interfere with the registration process.
 
@@ -94,4 +94,4 @@ Some printers secretly add an offset to your prints, even if they are set to 100
 
 ## Why does the PDF have a lower image resolution? Why are there image artifacts?
 
-The default quality is lossy. You can maximize the resolution by using `--quality 100` option. See [here](../docs/create) for more information.
+The default quality is lossy. You can maximize the resolution by using `--quality 100` option. See [here]({{% ref "../docs/create.md" %}}) for more information.

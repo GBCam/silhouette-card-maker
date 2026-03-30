@@ -35,7 +35,7 @@ To determine the required offset, print out `<paper size>_calibration.pdf` with 
 
 Shine a strong light on the front so you can see the shadows on the back. Determine which set of front and back squares are aligned. This set will provide your offset.
 
-Create and start your virtual Python environment and install Python dependencies if you have not done so already. See [here](create#basic-usage) for more information.
+Create and start your virtual Python environment and install Python dependencies if you have not done so already. See [here]({{% ref "create.md#basic-usage" %}}) for more information.
 
 A positive x value will move the back page to the right and a positive y value moves the back page up, relative to the back page's orientation.
 ```sh
@@ -87,7 +87,7 @@ You can save your x, y, and angle offset with the `--save` option. After saving 
 python offset_pdf.py --x_offset -5 --y_offset 10 --angle 0.5 --save
 ```
 
-Additionally, you can automatically apply a saved offset in [`create_pdf.py`](create) by using the `--load_offset` option.
+Additionally, you can automatically apply a saved offset in [`create_pdf.py`]({{% ref "create.md" %}}) by using the `--load_offset` option.
 
 ```sh
 python create_pdf.py --load_offset
