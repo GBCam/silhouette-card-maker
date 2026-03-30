@@ -10,6 +10,7 @@ from plugins.mtg.common import ScryfallLanguage
 from plugins.mtg.deck_formats import DeckFormat, parse_deck, extract_mpcfill_card_ids
 from plugins.mtg.scryfall import get_handle_card as scryfall_get_handle_card
 from plugins.mtg.mpcfill import get_handle_card as mpc_get_handle_card, prefetch_mpcfill
+from utilities import ensure_directory
 
 front_directory = os.path.join('game', 'front')
 double_sided_directory = os.path.join('game', 'double_sided')
@@ -41,6 +42,8 @@ def cli(
 
     prefer_lang: tuple,
 ):
+    ensure_directory(front_directory)
+    ensure_directory(double_sided_directory)
     if format == DeckFormat.URL:
         deck_text = deck_path
     else:

@@ -7,6 +7,7 @@ sys.path.insert(0, path.join(path.dirname(__file__), '..', '..'))
 
 from plugins.bushiroad.deck_formats import DeckFormat, parse_deck
 from plugins.bushiroad.bushiroad import get_handle_card
+from utilities import ensure_directory
 
 front_directory = path.join('game', 'front')
 back_directory = path.join('game', 'double_sided')
@@ -16,6 +17,8 @@ back_directory = path.join('game', 'double_sided')
 @argument('format', type=Choice([t.value for t in DeckFormat], case_sensitive=False))
 
 def cli(deck_path: str, format: DeckFormat):
+    ensure_directory(front_directory)
+    ensure_directory(back_directory)
     if not (format == DeckFormat.BUSHIROAD_URL) and not path.isfile(deck_path):
         print(f'{deck_path} is not a valid file.')
         return

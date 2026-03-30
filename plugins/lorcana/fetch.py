@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from plugins.lorcana.deck_formats import DeckFormat, parse_deck
 from plugins.lorcana.lorcast import get_handle_card
+from utilities import ensure_directory
 
 front_directory = os.path.join('game', 'front')
 
@@ -19,6 +20,7 @@ def cli(
     deck_path: str,
     format: DeckFormat,
 ):
+    ensure_directory(front_directory)
     if not os.path.isfile(deck_path):
         print(f'{deck_path} is not a valid file.')
         return

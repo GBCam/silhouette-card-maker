@@ -265,6 +265,17 @@ def get_directory(path):
     else:
         return os.path.abspath(os.path.dirname(path))
 
+def ensure_directory(path: str) -> str:
+    """Create directory and any missing parent directories. Returns the path."""
+    os.makedirs(path, exist_ok=True)
+    return path
+
+def ensure_output_directory(output_path: str) -> None:
+    """Create the parent directory of output_path if it doesn't exist."""
+    parent = os.path.dirname(os.path.abspath(output_path))
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+
 def get_image_file_paths(dir_path: str) -> List[str]:
     result = []
 
@@ -694,6 +705,7 @@ def generate_pdf(
     else:
         if not output_path.lower().endswith(".pdf"):
             raise Exception(f'Cannot save PDF to output path "{output_path}" because it is not a valid PDF file path.')
+        ensure_output_directory(output_path)
 
     # Get the back image, if it exists
     back_card_image_path = None

@@ -7,6 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from plugins.yugioh.deck_formats import DeckFormat, parse_deck
 from plugins.yugioh.ygoprodeck import fetch_card_art
+from utilities import ensure_directory
 
 front_directory = os.path.join('game', 'front')
 double_sided_directory = os.path.join('game', 'double_sided')
@@ -16,6 +17,8 @@ double_sided_directory = os.path.join('game', 'double_sided')
 @click.argument('format', type=click.Choice([t.value for t in DeckFormat], case_sensitive=False))
 
 def cli(deck_path: str, format: DeckFormat):
+    ensure_directory(front_directory)
+    ensure_directory(double_sided_directory)
     if format != DeckFormat.YDKE and not os.path.isfile(deck_path):
         print(f'{deck_path} is not a valid file.')
         return
