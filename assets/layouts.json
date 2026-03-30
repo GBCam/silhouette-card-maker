@@ -996,6 +996,23 @@
         }
     },
     "specialty_layouts": {
+        "a4-commander": {
+            "card_size": {
+                "width": "17.82mm",
+                "height": "24.89mm",
+                "radius": "0.85mm"
+            },
+            "paper_size": {
+                "name": "a4"
+            },
+            "orientation": "portrait",
+            "version": 1,
+            "num_rows": 10,
+            "num_cols": 10,
+            "registration": {
+                "length": "7.03mm"
+            }
+        },
         "letter-commander": {
             "card_size": {
                 "width": "16.86mm",
@@ -1006,7 +1023,7 @@
                 "name": "letter"
             },
             "orientation": "portrait",
-            "version": 1,
+            "version": 2,
             "num_rows": 10,
             "num_cols": 10,
             "registration": {
