@@ -39,12 +39,21 @@ def request_scryfall(
 ) -> requests.Response:
     r = requests.get(query, params=params, headers = {'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'})
 
-    # Check for 2XX response code
+
+    # Rate limit check
+    if r.status_code == 429:
+        time.sleep(1)
+        return request_scryfall(query, params)
+
     r.raise_for_status()
 
-    # Sleep for 75 milliseconds, greater than the 50 ms requested by Scryfall API documentation
+    # Sleep for 500ms or 100ms milliseconds, which is requested by Scryfall API documentation
     # See rate limits: https://scryfall.com/docs/api
-    time.sleep(0.075)
+
+    if "cards/search" in query or "cards/named" in query:
+        time.sleep(0.5)   # 2/second (500ms)
+    elif "api.scryfall.io" not in query:
+        time.sleep(0.11)  # All other API methods 10/second (100ms)
 
     return r
 
