@@ -11,6 +11,8 @@ from .common import remove_nonalphanumeric, ScryfallLanguage, to_scryfall_api_la
 
 double_sided_layouts = ['transform', 'modal_dfc', 'double_faced_token', 'reversible_card', 'meld']
 
+scryfall = requests.Session()
+
 def append_search_filter(uri: str, filter_term: str) -> str:
     parsed = urlparse(uri)
     params = parse_qs(parsed.query, keep_blank_values=True)
@@ -37,12 +39,11 @@ def request_scryfall(
     query: str,
     params: dict = None,
 ) -> requests.Response:
-    r = requests.get(query, params=params, headers = {'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'})
-
+    r = scryfall.get(query, params=params, headers = {'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'}) # Should be a lot smoother and nicer to Scryfall servers.
 
     # Rate limit check
     if r.status_code == 429:
-        time.sleep(1)
+        time.sleep(30) # Let us wait 30 seconds so we don't get blocked.
         return request_scryfall(query, params)
 
     r.raise_for_status()
@@ -51,8 +52,8 @@ def request_scryfall(
     # See rate limits: https://scryfall.com/docs/api
 
     if "cards/search" in query or "cards/named" in query:
-        time.sleep(0.5)   # 2/second (500ms)
-    elif "api.scryfall.io" not in query:
+        time.sleep(0.5)   # 2/second (500ms) - Required limit as requested by Scryfall
+    elif 'api.scryfall.com' in query: # Catch all for other queries (And slightly over the time to be safe)
         time.sleep(0.11)  # All other API methods 10/second (100ms)
 
     return r
