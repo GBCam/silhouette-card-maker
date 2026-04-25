@@ -603,12 +603,12 @@ def add_front_back_pages(front_page: Image.Image, back_page: Image.Image, pages:
     # Portrait: short sides are top/bottom; black square top-left → label on BOTTOM.
     if orientation == Orientation.LANDSCAPE:
         # Right side: rotate page, draw horizontal text, rotate back
-        front_page = front_page.rotate(-90, expand=True)
+        front_page = front_page.rotate(-90, expand=True, resample=Image.Resampling.NEAREST)
         draw = ImageDraw.Draw(front_page)
         label_x = math.floor((page_height / 2) * ppi_ratio)
         label_y = math.floor(page_width * ppi_ratio) - label_margin_px
         draw.text((label_x, label_y), label_text, fill=(0, 0, 0), anchor="mm", font=font)
-        front_page = front_page.rotate(90, expand=True)
+        front_page = front_page.rotate(90, expand=True, resample=Image.Resampling.NEAREST)
     else:
         # Bottom side: horizontal text
         draw = ImageDraw.Draw(front_page)
@@ -619,8 +619,8 @@ def add_front_back_pages(front_page: Image.Image, back_page: Image.Image, pages:
     # Rotate portrait pages to landscape so the generated PDF is always landscape.
     # This ensures offset_pdf.py works regardless of orientation detection.
     if orientation == Orientation.PORTRAIT:
-        front_page = front_page.rotate(-90, expand=True)
-        back_page = back_page.rotate(-90, expand=True)
+        front_page = front_page.rotate(-90, expand=True, resample=Image.Resampling.NEAREST)
+        back_page = back_page.rotate(-90, expand=True , resample=Image.Resampling.NEAREST)
 
     # Add a back page for every front page template
     pages.append(front_page)
@@ -860,9 +860,12 @@ def generate_pdf(
 
     # Load an image with the registration marks
     with page_manager.generate_reg_mark(paper_size_def.width, paper_size_def.height, effective_inset, effective_thickness, effective_length, layout_config.ppi, registration, orientation) as reg_im:
-        reg_im = reg_im.resize([math.floor(reg_im.width * ppi_ratio), math.floor(reg_im.height * ppi_ratio)])
+        reg_im = reg_im.resize(
+            [round(reg_im.width * ppi_ratio), round(reg_im.height * ppi_ratio)],
+            resample=Image.Resampling.NEAREST
+        )
 
-        # Create the array that will store the filled templates
+    # Create the array that will store the filled templates
         pages: List[Image.Image] = []
 
         max_print_bleed = calculate_max_print_bleed(x_pos, y_pos, card_width_px, card_height_px, MINIMUM_BLEED)
@@ -1023,12 +1026,16 @@ def generate_pdf(
         # Save the pages array as a PDF
         if output_images:
             for index, page in enumerate(pages):
-                page.save(os.path.join(output_path, f'page{index + 1}.png'), resolution=math.floor(300 * ppi_ratio), speed=0, subsampling=0, quality=quality)
+                page.save(os.path.join(output_path, f'page{index + 1}.png'), dpi=(ppi, ppi)) # Report correct DPI
 
             print(f'Generated images: {output_path}')
 
         else:
-            pages[0].save(output_path, format='PDF', save_all=True, append_images=pages[1:], resolution=math.floor(300 * ppi_ratio), speed=0, subsampling=0, quality=quality)
+            print(f'\nSaving PDF ({len(pages)} pages at {ppi} PPI)...')
+            save_kwargs = dict(resolution=math.floor(300 * ppi_ratio))
+            if quality is not None:
+                save_kwargs['quality'] = quality
+            pages[0].save(output_path, format='PDF', save_all=True, append_images=pages[1:], **save_kwargs)
             print(f'Generated PDF: {output_path}')
 
 class OffsetData(BaseModel):
@@ -1074,7 +1081,7 @@ def offset_images(images: List[Image.Image], x_offset: int, y_offset: int, ppi: 
             # Apply angle rotation if specified
             # Negative angle because PIL rotates counter-clockwise, but we want positive = clockwise
             if angle_offset != 0.0:
-                result = result.rotate(-angle_offset, center=(image.width / 2, image.height / 2), fillcolor='white')
+                result = result.rotate(-angle_offset, center=(image.width / 2, image.height / 2), fillcolor='white', resample=Image.Resampling.NEAREST)
             result_images.append(result)
         else:
             result_images.append(image)

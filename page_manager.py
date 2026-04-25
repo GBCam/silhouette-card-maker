@@ -81,14 +81,17 @@ def generate_reg_mark(
 
     if registration == Registration.THREE:
         # Add filled black square (5x5mm at inset from left and top)
+        square_size = 5 + thickness_mm
         square = Rectangle(
-            (inset_mm, paper_height_mm - inset_mm - 5),
-            5, 5,
+            (inset_mm, paper_height_mm - inset_mm - square_size),
+            square_size, square_size,
             facecolor='black',
-            edgecolor='black',
-            linewidth=thickness_pt
+            edgecolor='none',
+            linewidth=0,
+            antialiased=False,
         )
         ax.add_patch(square)
+
     else:  # Registration.FOUR
         # Top-left L-shape (horizontal line)
         x_start = inset_mm
@@ -98,6 +101,7 @@ def generate_reg_mark(
         line = mlines.Line2D([x_start, x_end], [y_start, y_end], color='black', linewidth=thickness_pt)
         ax.add_line(line)
 
+
         # Top-left L-shape (vertical line)
         x_start = inset_mm
         x_end = inset_mm
@@ -105,6 +109,7 @@ def generate_reg_mark(
         y_end = paper_height_mm - inset_mm - length_mm + (thickness_mm / 2)
         line = mlines.Line2D([x_start, x_end], [y_start, y_end], color='black', linewidth=thickness_pt)
         ax.add_line(line)
+
 
     # Bottom-left L-shape (horizontal line)
     x_start = inset_mm
@@ -114,6 +119,7 @@ def generate_reg_mark(
     line = mlines.Line2D([x_start, x_end], [y_start, y_end], color='black', linewidth=thickness_pt)
     ax.add_line(line)
 
+
     # Bottom-left L-shape (vertical line)
     x_start = inset_mm
     x_end = inset_mm
@@ -121,6 +127,7 @@ def generate_reg_mark(
     y_end = inset_mm + length_mm - (thickness_mm / 2)
     line = mlines.Line2D([x_start, x_end], [y_start, y_end], color='black', linewidth=thickness_pt)
     ax.add_line(line)
+
 
     # Top-right L-shape (horizontal line)
     x_start = paper_width_mm - inset_mm - length_mm + (thickness_mm / 2)
@@ -130,6 +137,7 @@ def generate_reg_mark(
     line = mlines.Line2D([x_start, x_end], [y_start, y_end], color='black', linewidth=thickness_pt)
     ax.add_line(line)
 
+
     # Top-right L-shape (vertical line)
     x_start = paper_width_mm - inset_mm
     x_end = paper_width_mm - inset_mm
@@ -137,6 +145,7 @@ def generate_reg_mark(
     y_end = paper_height_mm - inset_mm - length_mm + (thickness_mm / 2)
     line = mlines.Line2D([x_start, x_end], [y_start, y_end], color='black', linewidth=thickness_pt)
     ax.add_line(line)
+
 
     if registration == Registration.FOUR:
         # Bottom-right L-shape (horizontal line)
@@ -147,6 +156,7 @@ def generate_reg_mark(
         line = mlines.Line2D([x_start, x_end], [y_start, y_end], color='black', linewidth=thickness_pt)
         ax.add_line(line)
 
+
         # Bottom-right L-shape (vertical line)
         x_start = paper_width_mm - inset_mm
         x_end = paper_width_mm - inset_mm
@@ -155,12 +165,20 @@ def generate_reg_mark(
         line = mlines.Line2D([x_start, x_end], [y_start, y_end], color='black', linewidth=thickness_pt)
         ax.add_line(line)
 
+
     # Save output
-    img_buf = io.BytesIO()
-    plt.savefig(img_buf, format='jpg')
-    img_buf.seek(0)
-    img = Image.open(img_buf)
-    plt.close(fig)  # Close the figure to free memory
+    fig.canvas.draw()
+    w, h = fig.canvas.get_width_height()
+    buf = fig.canvas.tostring_argb()
+    import numpy as np
+    arr = np.frombuffer(buf, dtype=np.uint8).reshape(h, w, 4)
+
+    # Drop alpha channel (ARGB → RGB), then brute-force any non-white pixel to pure black
+    rgb = np.array(arr[:, :, 1:])
+    rgb[np.any(rgb < 255, axis=2)] = [0, 0, 0]
+    img = Image.fromarray(rgb)
+
+    plt.close(fig)
     return img
 
 
