@@ -36,7 +36,7 @@ specialty_choices = get_all_specialty_layout_names(layout_config)
 @click.option("--extend_corners", default=0, type=click.IntRange(min=0), show_default=True, help="Reduce artifacts produced by rounded corners in card images.")
 
 @click.option("--ppi", default=300, type=click.IntRange(min=0), show_default=True, help="Pixels per inch (PPI) when creating PDF.")
-@click.option("--quality", default=None, type=click.IntRange(min=50, max=95), show_default="75", help="PDF image quality (50-95). A higher value corresponds to better quality and larger file size. Values above 90 will increase file size with no visible gain for print. Ignored with --output_images.")")
+@click.option("--quality", default=None, type=click.IntRange(min=50, max=95), show_default="75", help="PDF image quality (50-95). A higher value corresponds to better quality and larger file size. Values above 90 will increase file size with no visible gain for print. Ignored with --output_images.")
 @click.option("--load_offset", default=False, is_flag=True, help="Apply saved offsets. See `offset_pdf.py` for more information.")
 @click.option("--skip", type=click.IntRange(min=0), multiple=True, help="Skip a card based on its index. Useful for registration issues. Examples: 0, 4.")
 
