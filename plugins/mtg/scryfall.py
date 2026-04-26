@@ -323,13 +323,15 @@ def fetch_card(
                 card_printings.reverse()
 
             # Define filters in order of preference.
+            # Language filters are applied FIRST to ensure we only consider printings available in the preferred language.
+            # This prevents situations where full-art/showcase versions are selected but only available in English.
             # prefer_langs is an ordered list: each language gets its own filter so earlier languages rank higher.
             # prefer_sets is an ordered list: each set gets its own filter so earlier sets rank higher.
             filters = [
+                *[lambda c, lang=lang: c['lang'] == to_scryfall_api_lang(lang) for lang in prefer_langs or []],
                 lambda c: c['nonfoil'],
                 lambda c: not c['digital'],
                 lambda c: not c['promo'],
-                *[lambda c, lang=lang: c['lang'] == to_scryfall_api_lang(lang) for lang in prefer_langs or []],
                 *[lambda c, s=s: c['set'] == s for s in prefer_sets],
                 lambda c: not prefer_showcase ^ ('frame_effects' in c and 'showcase' in c['frame_effects']),
                 lambda c: not prefer_extra_art ^ (c['full_art'] or c['border_color'] == "borderless" or ('frame_effects' in c and 'extendedart' in c['frame_effects']))

@@ -1127,6 +1127,197 @@ class TestUniverseBeyondScryfallData:
 
 
 @pytest.mark.integration
+class TestLanguagePrioritization:
+    """Unit tests for language prioritization in progressive filtering.
+
+    When prefer_langs is specified, the filtering logic should prioritize language
+    BEFORE other aesthetic filters (showcase, extra_art, etc). This ensures users
+    get cards in their preferred language even if fancier versions are only available
+    in English.
+    """
+
+    def make_printing(self, set_code, collector_number, lang='en', full_art=False, showcase=False):
+        """Helper to create a mock printing with specified attributes."""
+        return {
+            'set': set_code,
+            'collector_number': collector_number,
+            'lang': lang,
+            'nonfoil': True,
+            'digital': False,
+            'promo': False,
+            'full_art': full_art,
+            'border_color': 'borderless' if full_art else 'black',
+            'frame_effects': ['showcase'] if showcase else [],
+        }
+
+    @patch('plugins.mtg.scryfall.fetch_card_art')
+    @patch('plugins.mtg.scryfall.request_scryfall')
+    def test_prefer_german_over_english_full_art(self, mock_request, mock_fetch_art):
+        """When a card has English full-art and German normal versions, German is selected."""
+        card_json = {
+            'name': 'Lightning Bolt',
+            'set': 'lea',
+            'collector_number': '1',
+            'layout': 'normal',
+            'prints_search_uri': PRINTS_SEARCH_URI,
+        }
+
+        printings = [
+            self.make_printing('lea', '1', 'en', full_art=True),   # English full-art
+            self.make_printing('lea', '2', 'de', full_art=False),  # German normal
+        ]
+
+        named_response = MagicMock()
+        named_response.json.return_value = card_json
+        printings_response = MagicMock()
+        printings_response.json.return_value = {'data': printings}
+        mock_request.side_effect = [named_response, printings_response]
+
+        fetch_card(1, 1, "", "", False, "Lightning Bolt",
+                   False, [], [], False, True, False, False,
+                   [ScryfallLanguage.GERMAN], False,
+                   front_img_dir='front', double_sided_dir='double_sided')
+
+        # Should select German printing even though English has full_art
+        args, _ = mock_fetch_art.call_args
+        assert args[3] == 'lea'
+        assert args[4] == '2'  # German version
+
+    @patch('plugins.mtg.scryfall.fetch_card_art')
+    @patch('plugins.mtg.scryfall.request_scryfall')
+    def test_prefer_german_over_english_showcase(self, mock_request, mock_fetch_art):
+        """When a card has English showcase and German normal versions, German is selected."""
+        card_json = {
+            'name': 'Sol Ring',
+            'set': 'lea',
+            'collector_number': '1',
+            'layout': 'normal',
+            'prints_search_uri': PRINTS_SEARCH_URI,
+        }
+
+        printings = [
+            self.make_printing('lea', '1', 'en', showcase=True),   # English showcase
+            self.make_printing('lea', '2', 'de', showcase=False),  # German normal
+        ]
+
+        named_response = MagicMock()
+        named_response.json.return_value = card_json
+        printings_response = MagicMock()
+        printings_response.json.return_value = {'data': printings}
+        mock_request.side_effect = [named_response, printings_response]
+
+        fetch_card(1, 1, "", "", False, "Sol Ring",
+                   False, [], [], True, False, False, False,
+                   [ScryfallLanguage.GERMAN], False,
+                   front_img_dir='front', double_sided_dir='double_sided')
+
+        # Should select German printing even though English has showcase
+        args, _ = mock_fetch_art.call_args
+        assert args[3] == 'lea'
+        assert args[4] == '2'  # German version
+
+    @patch('plugins.mtg.scryfall.fetch_card_art')
+    @patch('plugins.mtg.scryfall.request_scryfall')
+    def test_prefer_german_showcase_over_german_normal(self, mock_request, mock_fetch_art):
+        """When both German showcase and German normal exist, German showcase is selected."""
+        card_json = {
+            'name': 'Path to Exile',
+            'set': 'lea',
+            'collector_number': '1',
+            'layout': 'normal',
+            'prints_search_uri': PRINTS_SEARCH_URI,
+        }
+
+        printings = [
+            self.make_printing('lea', '1', 'en', showcase=True),   # English showcase
+            self.make_printing('lea', '2', 'de', showcase=False),  # German normal
+            self.make_printing('lea', '3', 'de', showcase=True),   # German showcase
+        ]
+
+        named_response = MagicMock()
+        named_response.json.return_value = card_json
+        printings_response = MagicMock()
+        printings_response.json.return_value = {'data': printings}
+        mock_request.side_effect = [named_response, printings_response]
+
+        fetch_card(1, 1, "", "", False, "Path to Exile",
+                   False, [], [], True, False, False, False,
+                   [ScryfallLanguage.GERMAN], False,
+                   front_img_dir='front', double_sided_dir='double_sided')
+
+        # Should select German showcase over German normal
+        args, _ = mock_fetch_art.call_args
+        assert args[3] == 'lea'
+        assert args[4] == '3'  # German showcase
+
+    @patch('plugins.mtg.scryfall.fetch_card_art')
+    @patch('plugins.mtg.scryfall.request_scryfall')
+    def test_multiple_prefer_langs_with_priority(self, mock_request, mock_fetch_art):
+        """When prefer_langs=[GERMAN, FRENCH], German is preferred over French."""
+        card_json = {
+            'name': 'Counterspell',
+            'set': 'lea',
+            'collector_number': '1',
+            'layout': 'normal',
+            'prints_search_uri': PRINTS_SEARCH_URI,
+        }
+
+        printings = [
+            self.make_printing('lea', '1', 'en'),  # English
+            self.make_printing('lea', '2', 'fr'),  # French
+            self.make_printing('lea', '3', 'de'),  # German
+        ]
+
+        named_response = MagicMock()
+        named_response.json.return_value = card_json
+        printings_response = MagicMock()
+        printings_response.json.return_value = {'data': printings}
+        mock_request.side_effect = [named_response, printings_response]
+
+        fetch_card(1, 1, "", "", False, "Counterspell",
+                   False, [], [], False, False, False, False,
+                   [ScryfallLanguage.GERMAN, ScryfallLanguage.FRENCH], False,
+                   front_img_dir='front', double_sided_dir='double_sided')
+
+        # Should select German (first in prefer_langs) over French
+        args, _ = mock_fetch_art.call_args
+        assert args[3] == 'lea'
+        assert args[4] == '3'  # German
+
+    @patch('plugins.mtg.scryfall.fetch_card_art')
+    @patch('plugins.mtg.scryfall.request_scryfall')
+    def test_fallback_to_english_when_preferred_lang_unavailable(self, mock_request, mock_fetch_art):
+        """When preferred language is unavailable, falls back to English."""
+        card_json = {
+            'name': 'Ancient Tomb',
+            'set': 'lea',
+            'collector_number': '1',
+            'layout': 'normal',
+            'prints_search_uri': PRINTS_SEARCH_URI,
+        }
+
+        printings = [
+            self.make_printing('lea', '1', 'en', full_art=True),  # English full-art (only option)
+        ]
+
+        named_response = MagicMock()
+        named_response.json.return_value = card_json
+        printings_response = MagicMock()
+        printings_response.json.return_value = {'data': printings}
+        mock_request.side_effect = [named_response, printings_response]
+
+        fetch_card(1, 1, "", "", False, "Ancient Tomb",
+                   False, [], [], False, True, False, False,
+                   [ScryfallLanguage.GERMAN], False,
+                   front_img_dir='front', double_sided_dir='double_sided')
+
+        # Should fall back to English when German is unavailable
+        args, _ = mock_fetch_art.call_args
+        assert args[3] == 'lea'
+        assert args[4] == '1'  # English version
+
+
+@pytest.mark.integration
 class TestUniverseBeyondFiltering:
     """Integration tests for prefer_ub and ignore_ub options via fetch_printings.
 
