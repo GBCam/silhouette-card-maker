@@ -36,9 +36,9 @@ TEST_CASES = [
     ('ppi600', ['--ppi', '600']),
     ('a4-ppi600', ['--paper_size', 'a4', '--ppi', '600', '--only_fronts']),
 
-    ('ppi600-quality100', ['--ppi', '600', '--quality', '100']),
+    ('ppi600-quality95', ['--ppi', '600', '--quality', '95']),
 
-    ('quality100', ['--quality', '100']),
+    ('quality95', ['--quality', '95']),
     ('quality75', ['--quality', '75', '--only_fronts']),
     ('quality50', ['--quality', '50', '--only_fronts']),
 
