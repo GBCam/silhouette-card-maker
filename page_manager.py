@@ -6,7 +6,7 @@ from matplotlib.patches import Rectangle
 import matplotlib.lines as mlines
 from PIL import Image
 import io
-
+import numpy
 import size_convert
 from enums import Orientation, Registration
 
@@ -170,12 +170,11 @@ def generate_reg_mark(
     fig.canvas.draw()
     w, h = fig.canvas.get_width_height()
     buf = fig.canvas.tostring_argb()
-    import numpy as np
-    arr = np.frombuffer(buf, dtype=np.uint8).reshape(h, w, 4)
+    arr = numpy.frombuffer(buf, dtype=numpy.uint8).reshape(h, w, 4)
 
     # Drop alpha channel (ARGB → RGB), then brute-force any non-white pixel to pure black
-    rgb = np.array(arr[:, :, 1:])
-    rgb[np.any(rgb < 255, axis=2)] = [0, 0, 0]
+    rgb = numpy.array(arr[:, :, 1:])
+    rgb[numpy.any(rgb < 255, axis=2)] = [0, 0, 0]
     img = Image.fromarray(rgb)
 
     plt.close(fig)
