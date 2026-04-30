@@ -11,21 +11,21 @@ from .common import remove_nonalphanumeric, ScryfallLanguage, to_scryfall_api_la
 
 double_sided_layouts = ['transform', 'modal_dfc', 'double_faced_token', 'reversible_card', 'meld']
 
-scryfall = requests.Session()
+session = requests.Session()
 
 _card_info_cache: dict[tuple[str, str], dict] = {}
 
 def prefetch_cards(identifiers: list[dict]) -> None:
     for i in range(0, len(identifiers), 75):
         batch = identifiers[i:i + 75]
-        r = scryfall.post(
+        r = session.post(
             'https://api.scryfall.com/cards/collection',
             json={'identifiers': batch},
             headers={'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'}
         )
         if r.status_code == 429:
             time.sleep(30)
-            r = scryfall.post(
+            r = session.post(
                 'https://api.scryfall.com/cards/collection',
                 json={'identifiers': batch},
                 headers={'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'}
@@ -63,23 +63,30 @@ def fetch_printings(prints_search_uri: str, prefer_ub: Optional[bool], name: str
 def request_scryfall(
     query: str,
     params: dict = None,
+    retry_count: int = 0,
 ) -> requests.Response:
-    r = scryfall.get(query, params=params, headers = {'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'}) # Should be a lot smoother and nicer to Scryfall servers.
+    r = session.get(query, params=params, headers = {'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'})
 
-    # Rate limit check
+    # Rate limit check - Scryfall requires 30 second wait per their documentation
     if r.status_code == 429:
-        time.sleep(30) # Let us wait 30 seconds so we don't get blocked.
-        return request_scryfall(query, params)
+        if retry_count >= 3:
+            print(f"Warning: Hit rate limit 3 times for {query}, giving up after 30s wait")
+            raise requests.exceptions.HTTPError(f"Max retries (3) exceeded for Scryfall API: {query}", response=r)
+        print(f"Hit Scryfall rate limit (429), waiting 30 seconds before retry {retry_count + 1}/3...")
+        time.sleep(30)
+        return request_scryfall(query, params, retry_count + 1)
 
     r.raise_for_status()
 
-    # Sleep for 500ms or 100ms milliseconds, which is requested by Scryfall API documentation
-    # See rate limits: https://scryfall.com/docs/api
+    # Apply rate limiting per Scryfall API documentation
+    # See: https://scryfall.com/docs/api/rate-limits
+    # Note: Direct image downloads from *.scryfall.io CDN have NO rate limits
 
     if "cards/search" in query or "cards/named" in query:
-        time.sleep(0.5)   # 2/second (500ms) - Required limit as requested by Scryfall
-    elif 'api.scryfall.com' in query: # Catch all for other queries (And slightly over the time to be safe)
-        time.sleep(0.11)  # All other API methods 10/second (100ms)
+        time.sleep(0.5)   # Search/named endpoints: 2 requests/second (500ms delay)
+    elif 'api.scryfall.com' in query:
+        time.sleep(0.1)  # All other API methods: 10 requests/second (100ms delay)
+    # else: No rate limiting needed for direct image downloads from *.scryfall.io CDN
 
     return r
 
@@ -344,13 +351,15 @@ def fetch_card(
                 card_printings.reverse()
 
             # Define filters in order of preference.
+            # Language filters are applied FIRST to ensure we only consider printings available in the preferred language.
+            # This prevents situations where full-art/showcase versions are selected but only available in English.
             # prefer_langs is an ordered list: each language gets its own filter so earlier languages rank higher.
             # prefer_sets is an ordered list: each set gets its own filter so earlier sets rank higher.
             filters = [
+                *[lambda c, lang=lang: c['lang'] == to_scryfall_api_lang(lang) for lang in prefer_langs or []],
                 lambda c: c['nonfoil'],
                 lambda c: not c['digital'],
                 lambda c: not c['promo'],
-                *[lambda c, lang=lang: c['lang'] == to_scryfall_api_lang(lang) for lang in prefer_langs or []],
                 *[lambda c, s=s: c['set'] == s for s in prefer_sets],
                 lambda c: not prefer_showcase ^ ('frame_effects' in c and 'showcase' in c['frame_effects']),
                 lambda c: not prefer_extra_art ^ (c['full_art'] or c['border_color'] == "borderless" or ('frame_effects' in c and 'extendedart' in c['frame_effects']))

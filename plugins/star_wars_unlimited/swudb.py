@@ -1,9 +1,11 @@
 from os import path
-from requests import Response, get
+from requests import Response, Session
 from time import sleep
 from re import sub, compile
 from PIL import Image
 from typing import Tuple
+
+session = Session()
 
 SWUDB_CARD_NUMBER_URL_TEMPLATE = 'https://api.swu-db.com/cards/{set_id}/{set_number}?format=json'
 SWUDB_NAME_URL_TEMPLATE = 'https://swudb.com/api/search/{name}{title}?grouping=cards&sortorder=setno&sortdir=desc'
@@ -14,7 +16,7 @@ OUTPUT_CARD_ART_FILE_TEMPLATE = '{deck_index}{card_name}{quantity_counter}.png'
 card_tuple = Tuple[str, str] # Name, Title
 
 def request_swudb(query: str) -> Response:
-    r = get(query, headers = {'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'})
+    r = session.get(query, headers = {'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'})
 
     # Check for 2XX response code
     r.raise_for_status()

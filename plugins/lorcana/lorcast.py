@@ -6,10 +6,12 @@ from io import BytesIO
 
 from PIL import Image
 
+session = requests.Session()
+
 def request_lorcast(
     query: str,
 ) -> requests.Response:
-    r = requests.get(query, headers = {'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'})
+    r = session.get(query, headers = {'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'})
 
     # Check for 2XX response code
     r.raise_for_status()

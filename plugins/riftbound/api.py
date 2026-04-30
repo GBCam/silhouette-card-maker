@@ -11,8 +11,10 @@ class ImageServer(str, Enum):
     PILTOVER = 'piltover_archive'
     RIFTMANA = 'riftmana'
 
+# Create a persistent cloudscraper session for connection pooling
+scraper = cloudscraper.create_scraper()
+
 def request_api(query: str) -> cloudscraper.CloudScraper:
-    scraper = cloudscraper.create_scraper()
     r = scraper.get(query, headers = {'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'})
 
     # Check for 2XX response code
