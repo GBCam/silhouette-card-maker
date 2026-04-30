@@ -10,4 +10,3 @@ pydantic==2.12.5
 pywinauto==0.6.9
 pypdfium2==4.30.0
 requests==2.32.4
-split-image==2.0.1
