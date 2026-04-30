@@ -1,4 +1,8 @@
+import csv
+import io
+import json
 import os
+import re
 import sys
 
 import click
@@ -8,7 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from plugins.mtg.common import ScryfallLanguage
 from plugins.mtg.deck_formats import DeckFormat, parse_deck, extract_mpcfill_card_ids
-from plugins.mtg.scryfall import get_handle_card as scryfall_get_handle_card
+from plugins.mtg.scryfall import get_handle_card as scryfall_get_handle_card, prefetch_cards
 from plugins.mtg.mpcfill import get_handle_card as mpc_get_handle_card, prefetch_mpcfill
 from utilities import ensure_directory
 
@@ -86,6 +90,11 @@ def cli(
             double_sided_directory,
         )
 
+        if format not in (DeckFormat.SIMPLE, DeckFormat.MTGO, DeckFormat.URL):
+            ids = _extract_ids(deck_text, format)
+            if ids:
+                prefetch_cards(ids)
+
     parse_deck(
         deck_text,
         format,
@@ -93,6 +102,52 @@ def cli(
         front_directory,
         double_sided_directory,
     )
+
+def _extract_ids(deck_text: str, fmt: DeckFormat):
+    ids = []
+    lines = deck_text.strip().split('\n')
+
+    if fmt in (DeckFormat.MTGA, DeckFormat.ARCHIDEKT, DeckFormat.MOXFIELD):
+        pat = re.compile(r'\((\w+)\)\s*([\w\-]+)\s*$')
+        for line in lines:
+            m = pat.search(line)
+            if m:
+                ids.append({'set': m.group(1).lower(), 'collector_number': m.group(2)})
+
+    elif fmt == DeckFormat.DECKSTATS:
+        pat = re.compile(r'\[(\w+)#([\w\-]+)\]')
+        for line in lines:
+            m = pat.search(line)
+            if m:
+                ids.append({'set': m.group(1).lower(), 'collector_number': m.group(2)})
+
+    elif fmt == DeckFormat.CUBECOBRA_CSV:
+        for row in csv.DictReader(io.StringIO(deck_text)):
+            s = row.get('Set', '')
+            cn = row.get('Collector Number', '')
+            if s and cn:
+                ids.append({'set': s.lower(), 'collector_number': cn})
+
+    elif fmt == DeckFormat.SCRYFALL_JSON:
+        for entry in json.loads(deck_text).get('entries', {}).values():
+            for item in entry:
+                digest = item.get('card_digest')
+                if not digest:
+                    continue
+                s = digest.get('set', '')
+                cn = digest.get('collector_number', '')
+                if s and cn:
+                    ids.append({'set': s.lower(), 'collector_number': cn})
+
+    seen = set()
+    out = []
+    for d in ids:
+        k = (d['set'], d['collector_number'])
+        if k not in seen:
+            seen.add(k)
+            out.append(d)
+    return out
+
 
 if __name__ == '__main__':
     cli()

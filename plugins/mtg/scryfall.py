@@ -13,6 +13,31 @@ double_sided_layouts = ['transform', 'modal_dfc', 'double_faced_token', 'reversi
 
 scryfall = requests.Session()
 
+_card_info_cache: dict[tuple[str, str], dict] = {}
+
+def prefetch_cards(identifiers: list[dict]) -> None:
+    for i in range(0, len(identifiers), 75):
+        batch = identifiers[i:i + 75]
+        r = scryfall.post(
+            'https://api.scryfall.com/cards/collection',
+            json={'identifiers': batch},
+            headers={'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'}
+        )
+        if r.status_code == 429:
+            time.sleep(30)
+            r = scryfall.post(
+                'https://api.scryfall.com/cards/collection',
+                json={'identifiers': batch},
+                headers={'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'}
+            )
+        r.raise_for_status()
+        data = r.json()
+        for card in data.get('data', []):
+            _card_info_cache[(card['set'], card['collector_number'])] = card
+        for entry in data.get('not_found', []):
+            print(f'Scryfall collection miss: {entry}')
+        time.sleep(0.5)
+
 def append_search_filter(uri: str, filter_term: str) -> str:
     parsed = urlparse(uri)
     params = parse_qs(parsed.query, keep_blank_values=True)
@@ -236,10 +261,13 @@ def fetch_card(
 ):
     # Query based on card set and card collector number if provided
     if not ignore_set_and_collector_number and card_set != "" and card_collector_number != "":
-        card_info_query = f"https://api.scryfall.com/cards/{card_set.lower()}/{card_collector_number}"
-
-        # Query for card info
-        card_json = request_scryfall(card_info_query).json()
+        cache_key = (card_set.lower(), card_collector_number)
+        if cache_key in _card_info_cache:
+            card_json = _card_info_cache[cache_key]
+        else:
+            card_json = request_scryfall(
+                f'https://api.scryfall.com/cards/{card_set.lower()}/{card_collector_number}'
+            ).json()
 
         fetch_card_art(
             index,
