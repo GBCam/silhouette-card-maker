@@ -22,6 +22,19 @@ from plugins.mtg.deck_formats import (
 )
 from plugins.mtg.common import ScryfallLanguage, to_scryfall_api_lang
 from plugins.mtg.scryfall import request_scryfall, get_handle_card, fetch_card, fetch_printings, build_image_url, fetch_image
+
+
+def _mock_img_response(content=b'fake_image', status_code=200):
+    r = MagicMock()
+    r.content = content
+    r.status_code = status_code
+    if status_code >= 400:
+        def _raise():
+            err = requests.exceptions.HTTPError()
+            err.response = r
+            raise err
+        r.raise_for_status.side_effect = _raise
+    return r
 from typing import List
 from plugins.mtg.patterns import MOXFIELD_PATTERN, DECKSTATS_PATTERN
 
@@ -733,15 +746,12 @@ class TestBuildImageUrl:
 class TestFetchImageLanguageFallback:
     """Test that fetch_image tries langs in priority order, falling back to English."""
 
-    @patch('plugins.mtg.scryfall.request_scryfall')
+    @patch('plugins.mtg.scryfall.session.get')
     def test_falls_back_to_english_on_404(self, mock_request):
-        lang_404 = requests.exceptions.HTTPError()
-        lang_404.response = MagicMock()
-        lang_404.response.status_code = 404
-
-        english_response = MagicMock()
-        english_response.content = b'fake_english_image'
-        mock_request.side_effect = [lang_404, english_response]
+        mock_request.side_effect = [
+            _mock_img_response(status_code=404),
+            _mock_img_response(content=b'fake_english_image'),
+        ]
 
         result = fetch_image("neo", "26", [ScryfallLanguage.JAPANESE])
 
@@ -751,16 +761,13 @@ class TestFetchImageLanguageFallback:
         assert "/ja?" not in fallback_url
         assert "neo/26/" in fallback_url
 
-    @patch('plugins.mtg.scryfall.request_scryfall')
+    @patch('plugins.mtg.scryfall.session.get')
     def test_tries_priority_order_before_english(self, mock_request):
         """With [jp, de], tries jp → de → en, returning first success."""
-        err_404 = requests.exceptions.HTTPError()
-        err_404.response = MagicMock()
-        err_404.response.status_code = 404
-
-        de_response = MagicMock()
-        de_response.content = b'fake_german_image'
-        mock_request.side_effect = [err_404, de_response]
+        mock_request.side_effect = [
+            _mock_img_response(status_code=404),
+            _mock_img_response(content=b'fake_german_image'),
+        ]
 
         result = fetch_image("lea", "1", [ScryfallLanguage.JAPANESE, ScryfallLanguage.GERMAN])
 
@@ -769,48 +776,37 @@ class TestFetchImageLanguageFallback:
         second_url = mock_request.call_args_list[1][0][0]
         assert "/de?" in second_url
 
-    @patch('plugins.mtg.scryfall.request_scryfall')
+    @patch('plugins.mtg.scryfall.session.get')
     def test_raises_when_all_langs_404(self, mock_request):
         """Raises the last HTTPError when every language including English 404s."""
-        err_404 = requests.exceptions.HTTPError()
-        err_404.response = MagicMock()
-        err_404.response.status_code = 404
-        mock_request.side_effect = err_404
+        mock_request.return_value = _mock_img_response(status_code=404)
 
         with pytest.raises(requests.exceptions.HTTPError):
             fetch_image("lea", "1", [ScryfallLanguage.JAPANESE])
 
         assert mock_request.call_count == 2  # jp + en fallback
 
-    @patch('plugins.mtg.scryfall.request_scryfall')
+    @patch('plugins.mtg.scryfall.session.get')
     def test_does_not_fall_back_on_non_404_error(self, mock_request):
-        err_500 = requests.exceptions.HTTPError()
-        err_500.response = MagicMock()
-        err_500.response.status_code = 500
-        mock_request.side_effect = err_500
+        mock_request.return_value = _mock_img_response(status_code=500)
 
         with pytest.raises(requests.exceptions.HTTPError):
             fetch_image("neo", "26", [ScryfallLanguage.JAPANESE])
 
         assert mock_request.call_count == 1
 
-    @patch('plugins.mtg.scryfall.request_scryfall')
+    @patch('plugins.mtg.scryfall.session.get')
     def test_english_only_does_not_retry_on_404(self, mock_request):
-        err_404 = requests.exceptions.HTTPError()
-        err_404.response = MagicMock()
-        err_404.response.status_code = 404
-        mock_request.side_effect = err_404
+        mock_request.return_value = _mock_img_response(status_code=404)
 
         with pytest.raises(requests.exceptions.HTTPError):
             fetch_image("lea", "1", [ScryfallLanguage.ENGLISH])
 
         assert mock_request.call_count == 1
 
-    @patch('plugins.mtg.scryfall.request_scryfall')
+    @patch('plugins.mtg.scryfall.session.get')
     def test_no_langs_falls_back_to_english(self, mock_request):
-        english_response = MagicMock()
-        english_response.content = b'fake_english_image'
-        mock_request.return_value = english_response
+        mock_request.return_value = _mock_img_response(content=b'fake_english_image')
 
         result = fetch_image("lea", "1", None)
 

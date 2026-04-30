@@ -1,4 +1,5 @@
 import os
+from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from typing import List, Optional, Tuple
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
@@ -130,7 +131,13 @@ def fetch_meld_back(
 
     # Fetch the meld result card info; the PNG URL is in the response, no second request needed
     meld_result_json = request_scryfall(meld_result['uri']).json()
-    meld_result_image_data = request_scryfall(meld_result_json['image_uris']['png']).content
+    img_url = meld_result_json['image_uris']['png']
+    r = session.get(img_url, headers={'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'}, allow_redirects=True)
+    if r.status_code == 429:
+        time.sleep(30)
+        r = session.get(img_url, headers={'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'}, allow_redirects=True)
+    r.raise_for_status()
+    meld_result_image_data = r.content
 
     # Split the meld result image into top/bottom halves
     img = Image.open(BytesIO(meld_result_image_data))
@@ -166,13 +173,20 @@ def fetch_image(card_set: str, card_collector_number: str, prefer_langs: List[Sc
     if not langs_to_try or langs_to_try[-1] != ScryfallLanguage.ENGLISH:
         langs_to_try.append(ScryfallLanguage.ENGLISH)
 
+    headers = {'user-agent': 'silhouette-card-maker/0.1', 'accept': '*/*'}
+
     last_error = None
     for i, lang in enumerate(langs_to_try):
         url = build_image_url(card_set, card_collector_number, lang)
         if face:
             url = f'{url}&face={face}'
         try:
-            return request_scryfall(url).content
+            r = session.get(url, headers=headers, allow_redirects=True)
+            if r.status_code == 429:
+                time.sleep(30)
+                r = session.get(url, headers=headers, allow_redirects=True)
+            r.raise_for_status()
+            return r.content
         except requests.exceptions.HTTPError as e:
             if e.response is None or e.response.status_code != 404:
                 raise
