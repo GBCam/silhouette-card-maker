@@ -4,6 +4,8 @@ import json
 import os
 import re
 import sys
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 
 import click
 
@@ -90,29 +92,52 @@ def cli(
             double_sided_directory,
         )
 
-        if format not in (DeckFormat.SIMPLE, DeckFormat.MTGO, DeckFormat.URL):
+        if format not in (DeckFormat.URL, DeckFormat.MPCFILL_XML):
             ids = _extract_ids(deck_text, format)
             if ids:
                 prefetch_cards(ids)
 
-    parse_deck(
-        deck_text,
-        format,
-        get_handle_card,
-        front_directory,
-        double_sided_directory,
-    )
+    if format == DeckFormat.URL:
+        from plugins.mtg.deck_formats import parse_url
+        parse_url(deck_text, get_handle_card, prefetch_cards)
+    else:
+        parse_deck(
+            deck_text,
+            format,
+            get_handle_card,
+            front_directory,
+            double_sided_directory,
+        )
 
 def _extract_ids(deck_text: str, fmt: DeckFormat):
     ids = []
     lines = deck_text.strip().split('\n')
 
-    if fmt in (DeckFormat.MTGA, DeckFormat.ARCHIDEKT, DeckFormat.MOXFIELD):
+    if fmt == DeckFormat.SIMPLE:
+        for line in lines:
+            name = line.strip()
+            if name:
+                ids.append({'name': name})
+
+    elif fmt == DeckFormat.MTGO:
+        for line in lines:
+            line = line.strip()
+            if line and line[0].isdigit():
+                parts = line.split(' ', 1)
+                if len(parts) == 2:
+                    ids.append({'name': parts[1].strip()})
+
+    elif fmt in (DeckFormat.MTGA, DeckFormat.ARCHIDEKT, DeckFormat.MOXFIELD):
         pat = re.compile(r'\((\w+)\)\s*([\w\-]+)\s*$')
+        fallback_pat = re.compile(r'(\d+)x?\s+(.+)')
         for line in lines:
             m = pat.search(line)
             if m:
                 ids.append({'set': m.group(1).lower(), 'collector_number': m.group(2)})
+            else:
+                m = fallback_pat.match(line.strip())
+                if m:
+                    ids.append({'name': m.group(2).strip()})
 
     elif fmt == DeckFormat.DECKSTATS:
         pat = re.compile(r'\[(\w+)#([\w\-]+)\]')
@@ -120,6 +145,10 @@ def _extract_ids(deck_text: str, fmt: DeckFormat):
             m = pat.search(line)
             if m:
                 ids.append({'set': m.group(1).lower(), 'collector_number': m.group(2)})
+            else:
+                m = re.match(r'\d+\s+(.+)', line.strip())
+                if m:
+                    ids.append({'name': m.group(1).strip()})
 
     elif fmt == DeckFormat.CUBECOBRA_CSV:
         for row in csv.DictReader(io.StringIO(deck_text)):
@@ -142,7 +171,11 @@ def _extract_ids(deck_text: str, fmt: DeckFormat):
     seen = set()
     out = []
     for d in ids:
-        k = (d['set'], d['collector_number'])
+        if 'name' in d:
+            d['name'] = re.sub(r'(\w)/(\w)', r'\1 // \2', d['name'])
+            k = d['name'].lower()
+        else:
+            k = (d['set'], d['collector_number'])
         if k not in seen:
             seen.add(k)
             out.append(d)

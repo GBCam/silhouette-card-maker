@@ -21,7 +21,12 @@ from plugins.mtg.deck_formats import (
     parse_scryfall_json,
 )
 from plugins.mtg.common import ScryfallLanguage, to_scryfall_api_lang
-from plugins.mtg.scryfall import request_scryfall, get_handle_card, fetch_card, fetch_printings, build_image_url, fetch_image
+from plugins.mtg.scryfall import request_scryfall, get_handle_card, fetch_card, fetch_printings, build_image_url, fetch_image, _card_info_cache, _card_name_cache
+
+@pytest.fixture(autouse=True)
+def reset_caches():
+    _card_info_cache.clear()
+    _card_name_cache.clear()
 
 
 def _mock_img_response(content=b'fake_image', status_code=200):

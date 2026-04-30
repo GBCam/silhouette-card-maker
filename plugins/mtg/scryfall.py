@@ -1,4 +1,5 @@
 import os
+import re
 from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from typing import List, Optional, Tuple
@@ -15,8 +16,10 @@ double_sided_layouts = ['transform', 'modal_dfc', 'double_faced_token', 'reversi
 session = requests.Session()
 
 _card_info_cache: dict[tuple[str, str], dict] = {}
+_card_name_cache: dict[str, dict] = {}
 
 def prefetch_cards(identifiers: list[dict]) -> None:
+    not_found = []
     for i in range(0, len(identifiers), 75):
         batch = identifiers[i:i + 75]
         r = session.post(
@@ -35,9 +38,34 @@ def prefetch_cards(identifiers: list[dict]) -> None:
         data = r.json()
         for card in data.get('data', []):
             _card_info_cache[(card['set'], card['collector_number'])] = card
+            _card_name_cache[card['name']] = card
         for entry in data.get('not_found', []):
-            print(f'Scryfall collection miss: {entry}')
+            not_found.append(entry)
         time.sleep(0.5)
+
+    for entry in not_found:
+        if 'name' not in entry:
+            print(f'Not found: {entry}')
+            continue
+        name = entry['name']
+        try:
+            card_json = request_scryfall('https://api.scryfall.com/cards/named', params={'exact': name}).json()
+        except requests.exceptions.HTTPError as e:
+            if e.response is None or e.response.status_code != 404:
+                print(f'Not found: {name}')
+                continue
+            try:
+                search_json = request_scryfall('https://api.scryfall.com/cards/search', params={'q': f'flavor_name:"{name}"', 'unique': 'cards'}).json()
+                if not search_json.get('data'):
+                    print(f'Not found: {name}')
+                    continue
+                card_json = search_json['data'][0]
+                print(f'Found by flavor name: {card_json["name"]}')
+            except requests.exceptions.HTTPError:
+                print(f'Not found: {name}')
+                continue
+        _card_info_cache[(card_json['set'], card_json['collector_number'])] = card_json
+        _card_name_cache[card_json['name']] = card_json
 
 def append_search_filter(uri: str, filter_term: str) -> str:
     parsed = urlparse(uri)
@@ -329,18 +357,23 @@ def fetch_card(
         if name == "":
             raise Exception()
 
-        # Query for card info (use params= for correct URL encoding of accented/special chars)
-        try:
-            card_json = request_scryfall('https://api.scryfall.com/cards/named', params={'exact': name}).json()
-        except requests.exceptions.HTTPError as e:
-            if e.response is None or e.response.status_code != 404:
-                raise
-            # Fall back to flavor name search (e.g. Godzilla series, convention promos)
-            search_json = request_scryfall('https://api.scryfall.com/cards/search', params={'q': f'flavor_name:"{name}"', 'unique': 'cards'}).json()
-            if not search_json.get('data'):
-                raise
-            card_json = search_json['data'][0]
-            print(f'Found by flavor name: {card_json["name"]}')
+        name = re.sub(r'(\w)/(\w)', r'\1 // \2', name)
+
+        if name in _card_name_cache:
+            card_json = _card_name_cache[name]
+        else:
+            try:
+                card_json = request_scryfall('https://api.scryfall.com/cards/named', params={'exact': name}).json()
+                _card_name_cache[name] = card_json
+            except requests.exceptions.HTTPError as e:
+                if e.response is None or e.response.status_code != 404:
+                    raise
+                search_json = request_scryfall('https://api.scryfall.com/cards/search', params={'q': f'flavor_name:"{name}"', 'unique': 'cards'}).json()
+                if not search_json.get('data'):
+                    raise
+                card_json = search_json['data'][0]
+                print(f'Found by flavor name: {card_json["name"]}')
+                _card_name_cache[name] = card_json
 
         # Filter out symbols from card names for use in filenames
         clean_card_name = remove_nonalphanumeric(name)

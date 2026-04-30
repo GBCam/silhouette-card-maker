@@ -43,7 +43,9 @@ def parse_deck_helper(deck_text: str, is_card_line: Callable[[str], bool], extra
                 error_lines.append((line, e))
 
         else:
-            print(f'Skipping: "{line}"')
+            stripped = line.strip()
+            if stripped:
+                print(f'Skipping: "{stripped}"')
 
     if len(error_lines) > 0:
         print(f'Errors: {error_lines}')
@@ -403,12 +405,21 @@ def parse_cubecobra_csv(deck_text, handle_card: Callable, front_img_dir: str, do
 #   Supported sites:
 #     Aetherhub, Archidekt, Deckstats, Moxfield, MTG Goldfish,
 #     MTGJSON, Scryfall, Tapped Out, TCGPlayer
-def parse_url(deck_url, handle_card: Callable) -> None:
+def parse_url(deck_url, handle_card: Callable, prefetch: Callable = None) -> None:
     scraper = cloudscraper.create_scraper()
-    cards = mtg_parser.parse_deck(deck_url, scraper)
+    cards = list(mtg_parser.parse_deck(deck_url, scraper))
     if not cards:
         print(f"Failed to parse deck from URL: {deck_url}")
         return
+
+    if prefetch:
+        ids = []
+        for card in cards:
+            if card.extension and card.number:
+                ids.append({'set': card.extension.lower(), 'collector_number': card.number})
+            else:
+                ids.append({'name': card.name})
+        prefetch(ids)
 
     error_lines = []
 
@@ -427,7 +438,7 @@ def parse_url(deck_url, handle_card: Callable) -> None:
             handle_card(index, name, set_code, collector_number, quantity)
         except Exception as e:
             print(f'Error: {e}')
-            error_lines.append((line, e))
+            error_lines.append((name, e))
 
     if len(error_lines) > 0:
         print(f'Errors: {error_lines}')
