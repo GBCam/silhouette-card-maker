@@ -20,11 +20,12 @@ from pdf_cases import IMAGES_DIR, BACK_DIR, EXPECTED_DIR, TEST_CASES
 def test_basic_create_pdf():
     """Verify the CLI runs without error and produces a PDF."""
     runner = CliRunner()
-    with tempfile.TemporaryDirectory() as output_dir:
+    with tempfile.TemporaryDirectory() as output_dir, tempfile.TemporaryDirectory() as ds_dir:
         output_path = os.path.join(output_dir, 'game.pdf')
         result = runner.invoke(cli, [
             '--front_dir_path', 'test/basic/front',
             '--back_dir_path', 'test/basic/back',
+            '--double_sided_dir_path', ds_dir,
             '--output_path', output_path,
         ])
         assert result.exit_code == 0
@@ -43,19 +44,22 @@ def assert_images_match(actual_dir, expected_dir, max_diff_fraction=0.005):
     can produce slightly different pixel values across platforms (e.g. Windows
     vs Linux libjpeg), even when the layout logic is identical.
     """
-    actual_files = sorted(f for f in os.listdir(actual_dir) if f.endswith('.png'))
+    actual_files = sorted(f for f in os.listdir(actual_dir)
+                          if f.endswith('.jpg') or f.endswith('.png'))
     expected_files = sorted(f for f in os.listdir(expected_dir) if f.endswith('.png'))
 
-    assert actual_files == expected_files, (
+    actual_names = [f[:-4] for f in actual_files]
+    expected_names = [f[:-4] for f in expected_files]
+    assert actual_names == expected_names, (
         f"File mismatch.\n  Actual: {actual_files}\n  Expected: {expected_files}"
     )
 
-    for filename in actual_files:
-        with Image.open(os.path.join(actual_dir, filename)) as actual_img, \
-             Image.open(os.path.join(expected_dir, filename)) as expected_img:
+    for actual_file, expected_file in zip(actual_files, expected_files):
+        with Image.open(os.path.join(actual_dir, actual_file)) as actual_img, \
+             Image.open(os.path.join(expected_dir, expected_file)) as expected_img:
 
             assert actual_img.size == expected_img.size, (
-                f"{filename}: size mismatch {actual_img.size} != {expected_img.size}"
+                f"{actual_file}: size mismatch {actual_img.size} != {expected_img.size}"
             )
 
             # Convert both to same mode for comparison
@@ -70,7 +74,7 @@ def assert_images_match(actual_dir, expected_dir, max_diff_fraction=0.005):
             diff_fraction = diff_pixels / total_pixels
             if diff_fraction > max_diff_fraction:
                 raise AssertionError(
-                    f"{filename}: images differ. "
+                    f"{actual_file}: images differ. "
                     f"{diff_pixels}/{total_pixels} pixels differ "
                     f"({diff_fraction:.2%} > {max_diff_fraction:.2%} tolerance)."
                 )

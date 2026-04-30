@@ -61,6 +61,17 @@ def generate_expected_images():
                     traceback.print_exception(type(result.exception), result.exception, result.exception.__traceback__)
                 continue
 
+            # Convert generated images to PNG for expected image storage
+            from PIL import Image
+            for filename in sorted(os.listdir(output_dir)):
+                if filename.endswith('.jpg') or filename.endswith('.png'):
+                    src_path = os.path.join(output_dir, filename)
+                    png_path = os.path.join(output_dir, filename[:-4] + '.png')
+                    with Image.open(src_path) as img:
+                        img.save(png_path)
+                    if not filename.endswith('.png'):
+                        os.remove(src_path)
+
             files = sorted(os.listdir(output_dir))
             print(f'  Generated {len(files)} file(s): {files}')
 

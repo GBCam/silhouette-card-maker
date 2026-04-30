@@ -10,8 +10,12 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from xml.dom import ValidationErr
 
+from concurrent.futures import ThreadPoolExecutor
+
 from natsort import natsorted
 from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps
+# Allow very large images for high-DPI PDF generation without spurious warnings
+Image.MAX_IMAGE_PIXELS = None
 from pydantic import BaseModel, model_validator
 
 import page_manager
@@ -98,10 +102,6 @@ class SpecialtyLayoutDef(BaseModel):
 class FitMode(str, Enum):
     STRETCH = "stretch"
     CROP = "crop"
-
-class CardLayoutSize(BaseModel):
-    width: int
-    height: int
 
 class PaperSizeDef(BaseModel):
     width: str
@@ -329,144 +329,215 @@ def crop_and_scale_image(
     scaled_bleed_height: int,
     fit: FitMode = FitMode.STRETCH
 ) -> tuple[Image.Image, int, int, tuple[int, int]]:
-    """
-    Crop and scale a card image, returning the processed image and bleed offsets.
+    cw, ch = card_image.size
 
-    When fit == STRETCH (default), each axis scales independently.
-    When fit == CROP, a uniform scale ratio is used (preserving aspect ratio),
-    and excess image data on the non-limiting axis is used for real bleed.
+    cropped_w = math.floor(cw * (1 - crop_percent_x / 100))
+    cropped_h = math.floor(ch * (1 - crop_percent_y / 100))
 
-    Returns:
-        tuple of:
-        - processed_image: The cropped and scaled card image
-        - bleed_offset_x: X position adjustment when bleed is included in image (negative or 0)
-        - bleed_offset_y: Y position adjustment when bleed is included in image (negative or 0)
-        - synthetic_bleed: (width, height) of bleed to generate artificially, (0, 0) if real bleed was used
-    """
-    card_width, card_height = card_image.size
-
-    # Calculate the original size minus the desired crop: "cropped size"
-    cropped_width = math.floor(card_width * (1 - (crop_percent_x / 100)))
-    cropped_height = math.floor(card_height * (1 - (crop_percent_y / 100)))
-
-    # Calculate the ratio between the cropped size and the scaled size: "scale ratio"
     if fit == FitMode.CROP:
-        # Uniform scaling: use the smaller ratio (the tighter-fitting axis) so that
-        # the image fills the entire target area. The other axis has excess image
-        # data that gets cropped away or used as real bleed.
-        uniform_ratio = min(cropped_width / scaled_width, cropped_height / scaled_height)
-        cropped_scaled_ratio_x = uniform_ratio
-        cropped_scaled_ratio_y = uniform_ratio
+        ratio = min(cropped_w / scaled_width, cropped_h / scaled_height)
+        ratio_x = ratio_y = ratio
     else:
-        cropped_scaled_ratio_x = cropped_width / scaled_width
-        cropped_scaled_ratio_y = cropped_height / scaled_height
+        ratio_x = cropped_w / scaled_width
+        ratio_y = cropped_h / scaled_height
 
-    # Calculate the size of the card after adding bleed: "bleed size"
-    scaled_width_with_bleed = scaled_width + 2 * scaled_bleed_width
-    scaled_height_with_bleed = scaled_height + 2 * scaled_bleed_height
+    scaled_w_bleed = scaled_width + 2 * scaled_bleed_width
+    scaled_h_bleed = scaled_height + 2 * scaled_bleed_height
 
-    # Calculate the size of the card after adding bleed, but before scaling: "unscaled bleed size"
-    unscaled_width_with_bleed = math.floor(scaled_width_with_bleed * cropped_scaled_ratio_x)
-    unscaled_height_with_bleed = math.floor(scaled_height_with_bleed * cropped_scaled_ratio_y)
+    unscaled_w_bleed = math.floor(scaled_w_bleed * ratio_x)
+    unscaled_h_bleed = math.floor(scaled_h_bleed * ratio_y)
 
-    can_bleed_x = unscaled_width_with_bleed <= card_width
-    can_bleed_y = unscaled_height_with_bleed <= card_height
+    can_x = unscaled_w_bleed <= cw
+    can_y = unscaled_h_bleed <= ch
 
-    # Check if the unscaled bleed size is smaller than the original card size
-    # If so, we can use real bleed from the card's edge pixels
-    if can_bleed_x and can_bleed_y:
-        crop_x = (card_width - unscaled_width_with_bleed) // 2
-        crop_y = (card_height - unscaled_height_with_bleed) // 2
-        card_image = card_image.crop((
-            crop_x,
-            crop_y,
-            card_width - crop_x,
-            card_height - crop_y,
-        ))
-        card_image = card_image.resize((scaled_width_with_bleed, scaled_height_with_bleed))
+    if can_x and can_y:
+        cx = (cw - unscaled_w_bleed) // 2
+        cy = (ch - unscaled_h_bleed) // 2
+        img = card_image.resize(
+            (scaled_w_bleed, scaled_h_bleed),
+            resample=Image.Resampling.BILINEAR,
+            box=(cx, cy, cw - cx, ch - cy)
+        )
+        return img, -scaled_bleed_width, -scaled_bleed_height, (0, 0)
 
-        # Offset position to account for bleed included in image
-        return card_image, -scaled_bleed_width, -scaled_bleed_height, (0, 0)
-
-    # Per-axis bleed paths (CROP mode only — uniform ratio guarantees no distortion)
     if fit == FitMode.CROP:
-        if can_bleed_x:
-            # Real bleed on X, synthetic on Y
-            content_height = min(math.floor(scaled_height * cropped_scaled_ratio_y), card_height)
-            crop_x = (card_width - unscaled_width_with_bleed) // 2
-            crop_y = (card_height - content_height) // 2
-            card_image = card_image.crop((crop_x, crop_y, card_width - crop_x, card_height - crop_y))
-            card_image = card_image.resize((scaled_width_with_bleed, scaled_height))
-            return card_image, -scaled_bleed_width, 0, (0, scaled_bleed_height)
+        if can_x:
+            content_h = min(math.floor(scaled_height * ratio_y), ch)
+            cx = (cw - unscaled_w_bleed) // 2
+            cy = (ch - content_h) // 2
+            img = card_image.resize(
+                (scaled_w_bleed, scaled_height),
+                resample=Image.Resampling.BILINEAR,
+                box=(cx, cy, cw - cx, ch - cy)
+            )
+            return img, -scaled_bleed_width, 0, (0, scaled_bleed_height)
 
-        if can_bleed_y:
-            # Synthetic on X, real bleed on Y
-            content_width = min(math.floor(scaled_width * cropped_scaled_ratio_x), card_width)
-            crop_x = (card_width - content_width) // 2
-            crop_y = (card_height - unscaled_height_with_bleed) // 2
-            card_image = card_image.crop((crop_x, crop_y, card_width - crop_x, card_height - crop_y))
-            card_image = card_image.resize((scaled_width, scaled_height_with_bleed))
-            return card_image, 0, -scaled_bleed_height, (scaled_bleed_width, 0)
+        if can_y:
+            content_w = min(math.floor(scaled_width * ratio_x), cw)
+            cx = (cw - content_w) // 2
+            cy = (ch - unscaled_h_bleed) // 2
+            img = card_image.resize(
+                (scaled_width, scaled_h_bleed),
+                resample=Image.Resampling.BILINEAR,
+                box=(cx, cy, cw - cx, ch - cy)
+            )
+            return img, 0, -scaled_bleed_height, (scaled_bleed_width, 0)
 
-        # Neither axis has room for real bleed — center-crop to content area
-        content_width = min(math.floor(scaled_width * cropped_scaled_ratio_x), card_width)
-        content_height = min(math.floor(scaled_height * cropped_scaled_ratio_y), card_height)
-        crop_x = (card_width - content_width) // 2
-        crop_y = (card_height - content_height) // 2
-        card_image = card_image.crop((crop_x, crop_y, card_width - crop_x, card_height - crop_y))
-        card_image = card_image.resize((scaled_width, scaled_height))
-        return card_image, 0, 0, (scaled_bleed_width, scaled_bleed_height)
+        content_w = min(math.floor(scaled_width * ratio_x), cw)
+        content_h = min(math.floor(scaled_height * ratio_y), ch)
+        cx = (cw - content_w) // 2
+        cy = (ch - content_h) // 2
+        img = card_image.resize(
+            (scaled_width, scaled_height),
+            resample=Image.Resampling.BILINEAR,
+            box=(cx, cy, cw - cx, ch - cy)
+        )
+        return img, 0, 0, (scaled_bleed_width, scaled_bleed_height)
 
-    # STRETCH fallback: crop the card to the cropped size, then resize it to the scaled size
-    crop_x = card_width * (crop_percent_x / 100) // 2
-    crop_y = card_height * (crop_percent_y / 100) // 2
-    card_image = card_image.crop((
-        crop_x,
-        crop_y,
-        card_width - crop_x,
-        card_height - crop_y,
-    ))
-    card_image = card_image.resize((scaled_width, scaled_height))
-
-    return card_image, 0, 0, (scaled_bleed_width, scaled_bleed_height)
+    cx = cw * (crop_percent_x / 100) // 2
+    cy = ch * (crop_percent_y / 100) // 2
+    img = card_image.resize(
+        (scaled_width, scaled_height),
+        resample=Image.Resampling.BILINEAR,
+        box=(cx, cy, cw - cx, ch - cy)
+    )
+    return img, 0, 0, (scaled_bleed_width, scaled_bleed_height)
 
 
 def draw_card_with_bleed(card_image: Image.Image, base_image: Image.Image, x: int, y: int, print_bleed: tuple[int, int]):
-    bleed_width, bleed_height = print_bleed
-
-    width, height = card_image.size
+    bleed_w, bleed_h = print_bleed
+    w, h = card_image.size
     base_image.paste(card_image, (x, y))
 
-    class Axis(int, Enum):
-        X = 0
-        Y = 1
+    if bleed_h > 0:
+        top = card_image.resize((w, bleed_h), resample=Image.Resampling.NEAREST, box=(0, 0, w, 1))
+        base_image.paste(top, (x, y - bleed_h))
+        bottom = card_image.resize((w, bleed_h), resample=Image.Resampling.NEAREST, box=(0, h - 1, w, h))
+        base_image.paste(bottom, (x, y + h))
 
-    def extend_edge(crop_box: tuple[int, int, int, int], start: tuple[int, int], bleed: int, axis: Axis):
-        for bleed_i in range(bleed):
-            pos = (
-                start[0] + (bleed_i if axis == Axis.X else 0),
-                start[1] + (bleed_i if axis == Axis.Y else 0)
-            )
+    if bleed_w > 0:
+        left = card_image.resize((bleed_w, h), resample=Image.Resampling.NEAREST, box=(0, 0, 1, h))
+        base_image.paste(left, (x - bleed_w, y))
+        right = card_image.resize((bleed_w, h), resample=Image.Resampling.NEAREST, box=(w - 1, 0, w, h))
+        base_image.paste(right, (x + w, y))
 
-            base_image.paste(card_image.crop(crop_box), pos)
-
-    # Extend the edges of the cards to create print bleed
-    # Top and bottom
-    extend_edge((0, 0, width, 1), (x, y - bleed_height), bleed_height, Axis.Y)
-    extend_edge((0, height - 1, width, height), (x, y + height), bleed_height, Axis.Y)
-
-    # Left and right
-    extend_edge((0, 0, 1, height), (x - bleed_width, y), bleed_width, Axis.X)
-    extend_edge((width - 1, 0, width, height), (x + width, y), bleed_width, Axis.X)
-
-    # Corners
-    for bleed_width, crop_x, pos_x in [(bleed_width, 0, x - bleed_width), (bleed_width, width - 1, x + width)]:
-        for bleed_height, crop_y, pos_y in [(bleed_height, 0, y - bleed_height), (bleed_height, height - 1, y + height)]:
-            for x_bleed_i in range(bleed_width):
-                for y_bleed_i in range(bleed_height):
-                    base_image.paste(card_image.crop((crop_x, crop_y, crop_x + 1, crop_y + 1)), (pos_x + x_bleed_i, pos_y + y_bleed_i))
+    if bleed_w > 0 and bleed_h > 0:
+        tl = card_image.resize((bleed_w, bleed_h), resample=Image.Resampling.NEAREST, box=(0, 0, 1, 1))
+        base_image.paste(tl, (x - bleed_w, y - bleed_h))
+        tr = card_image.resize((bleed_w, bleed_h), resample=Image.Resampling.NEAREST, box=(w - 1, 0, w, 1))
+        base_image.paste(tr, (x + w, y - bleed_h))
+        bl = card_image.resize((bleed_w, bleed_h), resample=Image.Resampling.NEAREST, box=(0, h - 1, 1, h))
+        base_image.paste(bl, (x - bleed_w, y + h))
+        br = card_image.resize((bleed_w, bleed_h), resample=Image.Resampling.NEAREST, box=(w - 1, h - 1, w, h))
+        base_image.paste(br, (x + w, y + h))
 
     return base_image
+
+
+def compose_card_with_bleed(card_image: Image.Image, print_bleed: tuple[int, int]) -> Image.Image:
+    bleed_w, bleed_h = print_bleed
+    w, h = card_image.size
+    total_w = w + 2 * bleed_w
+    total_h = h + 2 * bleed_h
+    result = Image.new('RGB', (total_w, total_h), 'white')
+    result.paste(card_image, (bleed_w, bleed_h))
+
+    if bleed_h > 0:
+        top = card_image.resize((w, bleed_h), resample=Image.Resampling.NEAREST, box=(0, 0, w, 1))
+        result.paste(top, (bleed_w, 0))
+        bottom = card_image.resize((w, bleed_h), resample=Image.Resampling.NEAREST, box=(0, h - 1, w, h))
+        result.paste(bottom, (bleed_w, h + bleed_h))
+
+    if bleed_w > 0:
+        left = card_image.resize((bleed_w, h), resample=Image.Resampling.NEAREST, box=(0, 0, 1, h))
+        result.paste(left, (0, bleed_h))
+        right = card_image.resize((bleed_w, h), resample=Image.Resampling.NEAREST, box=(w - 1, 0, w, h))
+        result.paste(right, (w + bleed_w, bleed_h))
+
+    if bleed_w > 0 and bleed_h > 0:
+        tl = card_image.resize((bleed_w, bleed_h), resample=Image.Resampling.NEAREST, box=(0, 0, 1, 1))
+        result.paste(tl, (0, 0))
+        tr = card_image.resize((bleed_w, bleed_h), resample=Image.Resampling.NEAREST, box=(w - 1, 0, w, 1))
+        result.paste(tr, (w + bleed_w, 0))
+        bl = card_image.resize((bleed_w, bleed_h), resample=Image.Resampling.NEAREST, box=(0, h - 1, 1, h))
+        result.paste(bl, (0, h + bleed_h))
+        br = card_image.resize((bleed_w, bleed_h), resample=Image.Resampling.NEAREST, box=(w - 1, h - 1, w, h))
+        result.paste(br, (w + bleed_w, h + bleed_h))
+
+    return result
+
+
+def _preprocess_card_image(
+    card_image: Image.Image,
+    is_back: bool,
+    single_back_image: Image.Image,
+    scaled_width: int,
+    scaled_height: int,
+    scaled_bleed_width: int,
+    scaled_bleed_height: int,
+    extend_corners_thickness: int,
+    crop: tuple[float, float],
+    crop_backs: tuple[float, float],
+    fit: FitMode,
+    flip: bool,
+    orientation: Orientation,
+) -> Image.Image:
+    if card_image is None:
+        return None
+
+    active_crop = crop_backs if (is_back and card_image is single_back_image) else crop
+
+    if active_crop[0] > 0 or active_crop[1] > 0 or fit == FitMode.CROP:
+        card_image, off_x, off_y, syn_bleed = crop_and_scale_image(
+            card_image, *active_crop, scaled_width, scaled_height,
+            scaled_bleed_width, scaled_bleed_height, fit
+        )
+    else:
+        card_image = card_image.resize((scaled_width, scaled_height), resample=Image.Resampling.BILINEAR)
+        syn_bleed = (scaled_bleed_width, scaled_bleed_height)
+        off_x = off_y = 0
+
+    if extend_corners_thickness > 0:
+        t = extend_corners_thickness
+        card_image = card_image.crop((t, t, card_image.width - t, card_image.height - t))
+
+    if flip and orientation == Orientation.LANDSCAPE:
+        card_image = card_image.transpose(Image.Transpose.ROTATE_180)
+
+    total_bleed_x = syn_bleed[0] + extend_corners_thickness
+    total_bleed_y = syn_bleed[1] + extend_corners_thickness
+    if total_bleed_x > 0 or total_bleed_y > 0:
+        card_image = compose_card_with_bleed(card_image, (total_bleed_x, total_bleed_y))
+
+    card_image._paste_offset_x = off_x - syn_bleed[0]
+    card_image._paste_offset_y = off_y - syn_bleed[1]
+    return card_image
+
+
+def _paste_preprocessed_cards(
+    card_images: List[Image.Image | None],
+    base_image: Image.Image,
+    num_rows: int,
+    num_cols: int,
+    x_pos: List[int],
+    y_pos: List[int],
+    ppi_ratio: float,
+    flip: bool,
+    orientation: Orientation,
+):
+    for i, card_image in enumerate(card_images):
+        if card_image is None:
+            continue
+        col, row = i % num_cols, i // num_cols
+        if flip:
+            col, row = (num_cols - col - 1, row) if orientation == Orientation.PORTRAIT else (col, num_rows - row - 1)
+        base_x = math.floor(x_pos[col] * ppi_ratio)
+        base_y = math.floor(y_pos[row] * ppi_ratio)
+        base_image.paste(
+            card_image,
+            (base_x + card_image._paste_offset_x, base_y + card_image._paste_offset_y),
+        )
+
 
 def draw_card_layout(
     card_images: List[Image.Image | None],
@@ -543,7 +614,7 @@ def draw_card_layout(
             )
         else:
             # No percentage crop and STRETCH mode: just scale to target size
-            card_image = card_image.resize((scaled_width, scaled_height))
+            card_image = card_image.resize((scaled_width, scaled_height), resample=Image.Resampling.BILINEAR)
 
         # Extend the corners if required
         card_image = card_image.crop((
@@ -587,7 +658,7 @@ def draw_outline(
                 width=1,
             )
 
-def add_front_back_pages(front_page: Image.Image, back_page: Image.Image, pages: List[Image.Image], page_width: int, page_height: int, ppi_ratio: float, template: str, only_fronts: bool, label: str, orientation: Orientation, label_margin_px: int):
+def add_front_back_pages(front_page: Image.Image, back_page: Image.Image | None, pages: List[Image.Image], page_width: int, page_height: int, ppi_ratio: float, template: str, only_fronts: bool, label: str, orientation: Orientation, label_margin_px: int):
     font = ImageFont.truetype(os.path.join(asset_directory, 'arial.ttf'), 40 * ppi_ratio)
 
     num_sheet = len(pages) + 1
@@ -598,34 +669,62 @@ def add_front_back_pages(front_page: Image.Image, back_page: Image.Image, pages:
     if label is not None:
         label_text = f'label: {label}, {label_text}'
 
-    # Label goes on the short side of the paper, opposite the top-left black square.
-    # Landscape: short sides are left/right; black square top-left → label on RIGHT.
-    # Portrait: short sides are top/bottom; black square top-left → label on BOTTOM.
     if orientation == Orientation.LANDSCAPE:
-        # Right side: rotate page, draw horizontal text, rotate back
-        front_page = front_page.rotate(-90, expand=True, resample=Image.Resampling.NEAREST)
-        draw = ImageDraw.Draw(front_page)
-        label_x = math.floor((page_height / 2) * ppi_ratio)
-        label_y = math.floor(page_width * ppi_ratio) - label_margin_px
-        draw.text((label_x, label_y), label_text, fill=(0, 0, 0), anchor="mm", font=font)
-        front_page = front_page.rotate(90, expand=True, resample=Image.Resampling.NEAREST)
+        temp_draw = ImageDraw.Draw(Image.new('RGBA', (1, 1), (0, 0, 0, 0)))
+        bbox = temp_draw.textbbox((0, 0), label_text, font=font)
+        text_w, text_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+        text_img = Image.new('RGBA', (text_w, text_h), (255, 255, 255, 0))
+        ImageDraw.Draw(text_img).text((0, 0), label_text, fill=(0, 0, 0), font=font)
+
+        rot = text_img.rotate(-90, expand=True, resample=Image.Resampling.NEAREST)
+        paste_x = front_page.width - label_margin_px - rot.width // 2
+        paste_y = front_page.height // 2 - rot.height // 2
+        front_page.paste(rot, (paste_x, paste_y), rot)
     else:
-        # Bottom side: horizontal text
         draw = ImageDraw.Draw(front_page)
         label_x = math.floor((page_width / 2) * ppi_ratio)
         label_y = math.floor(page_height * ppi_ratio) - label_margin_px
         draw.text((label_x, label_y), label_text, fill=(0, 0, 0), anchor="mm", font=font)
 
-    # Rotate portrait pages to landscape so the generated PDF is always landscape.
-    # This ensures offset_pdf.py works regardless of orientation detection.
     if orientation == Orientation.PORTRAIT:
         front_page = front_page.rotate(-90, expand=True, resample=Image.Resampling.NEAREST)
-        back_page = back_page.rotate(-90, expand=True , resample=Image.Resampling.NEAREST)
+        if back_page is not None:
+            back_page = back_page.rotate(-90, expand=True, resample=Image.Resampling.NEAREST)
 
-    # Add a back page for every front page template
     pages.append(front_page)
     if not only_fronts:
         pages.append(back_page)
+
+def _draw_label(page: Image.Image, text: str, orientation: Orientation,
+                page_w: int, page_h: int, ppi_ratio: float, margin: int):
+    font = ImageFont.truetype(
+        os.path.join(asset_directory, 'arial.ttf'),
+        int(40 * ppi_ratio)
+    )
+
+    if orientation == Orientation.LANDSCAPE:
+        scratch = ImageDraw.Draw(Image.new('RGBA', (1, 1)))
+        x0, y0, x1, y1 = scratch.textbbox((0, 0), text, font=font)
+        tw, th = x1 - x0, y1 - y0
+
+        label = Image.new('RGBA', (tw, th), (255, 255, 255, 0))
+        ImageDraw.Draw(label).text((0, 0), text, fill=(0, 0, 0), font=font)
+        rot = label.rotate(-90, expand=True, resample=Image.Resampling.NEAREST)
+
+        page.paste(
+            rot,
+            (page.width - margin - rot.width // 2,
+             page.height // 2 - rot.height // 2),
+            rot
+        )
+        return
+
+    draw = ImageDraw.Draw(page)
+    draw.text(
+        (int(page_w * ppi_ratio / 2), int(page_h * ppi_ratio) - margin),
+        text, fill=(0, 0, 0), anchor='mm', font=font
+    )
 
 def check_paths_subset(subset: set[str], mainset: set[str]) -> set[str]:
     """Return the items in `subset` whose basenames do NOT appear in `mainset`,
@@ -680,6 +779,7 @@ def generate_pdf(
     label: str,
     show_outline: bool = False,
     specialty: Optional[str] = None,
+    output_format: str = "jpg",
 ):
     # Sanity checks for the different directories
     f_path = Path(front_dir_path)
@@ -852,191 +952,243 @@ def generate_pdf(
     if len(clean_skip_indices) == num_cards:
         raise Exception(f'You cannot skip all cards per page')
 
-    # The baseline PPI is 300
     ppi_ratio = ppi / 300
 
     inset_px = size_convert.size_to_pixel(effective_inset, layout_config.ppi)
     label_margin_px = math.floor((inset_px - 2 * MINIMUM_BLEED) * ppi_ratio)
 
-    # Load an image with the registration marks
-    with page_manager.generate_reg_mark(paper_size_def.width, paper_size_def.height, effective_inset, effective_thickness, effective_length, layout_config.ppi, registration, orientation) as reg_im:
-        reg_im = reg_im.resize(
-            [round(reg_im.width * ppi_ratio), round(reg_im.height * ppi_ratio)],
-            resample=Image.Resampling.NEAREST
+    max_print_bleed = calculate_max_print_bleed(x_pos, y_pos, card_width_px, card_height_px, MINIMUM_BLEED)
+
+    scaled_width = math.floor(card_width_px * ppi_ratio)
+    scaled_height = math.floor(card_height_px * ppi_ratio)
+    scaled_bleed_width = math.ceil(max_print_bleed[0] * ppi_ratio)
+    scaled_bleed_height = math.ceil(max_print_bleed[1] * ppi_ratio)
+    extend_corners_thickness = math.floor(extend_corners * ppi_ratio)
+
+    pw_mm = size_convert.size_to_mm(paper_size_def.width)
+    ph_mm = size_convert.size_to_mm(paper_size_def.height)
+    if orientation == Orientation.PORTRAIT:
+        pw_mm, ph_mm = ph_mm, pw_mm
+    page_w = int(pw_mm / 25.4 * ppi)
+    page_h = int(ph_mm / 25.4 * ppi)
+
+    inset_mm, thick_mm, len_mm = page_manager._constrain_reg_params(
+        size_convert.size_to_mm(effective_inset),
+        size_convert.size_to_mm(effective_thickness),
+        size_convert.size_to_mm(effective_length),
+    )
+    len_mm = min(len_mm, computed.max_length_mm)
+    mm_to_px = ppi / 25.4
+    inset_px = int(inset_mm * mm_to_px)
+    thick_px = max(1, int(thick_mm * mm_to_px))
+    length_px = int(len_mm * mm_to_px)
+    sq_px = int(round((5 + thick_mm) * mm_to_px))
+
+    pages: List[Image.Image] = []
+    sheet_num = 0
+
+    if output_images:
+        os.makedirs(output_path, exist_ok=True)
+
+    # Load and cache the single back image for reuse
+    single_back_image = None
+    single_back_image_preprocessed = None
+    if not only_fronts and not use_default_back_page:
+        try:
+            single_back_image = Image.open(back_card_image_path)
+            ImageOps.exif_transpose(single_back_image, in_place=True)
+        except FileNotFoundError:
+            print(f'Cannot get back image "{back_card_image_path}". Using default instead.')
+            single_back_image = None
+        except OSError as e:
+            raise OSError(f'Failed to load back image "{back_card_image_path}": {e}') from e
+
+        if single_back_image is not None:
+            single_back_image_preprocessed = _preprocess_card_image(
+                single_back_image,
+                is_back=True,
+                single_back_image=single_back_image,
+                scaled_width=scaled_width,
+                scaled_height=scaled_height,
+                scaled_bleed_width=scaled_bleed_width,
+                scaled_bleed_height=scaled_bleed_height,
+                extend_corners_thickness=extend_corners_thickness,
+                crop=crop,
+                crop_backs=crop_backs,
+                fit=fit,
+                flip=True,
+                orientation=orientation,
+            )
+
+    images_to_close: list[Image.Image] = []
+
+    def _process_one(file: str):
+        front_path = os.path.join(front_dir_path, file)
+        front_path = resolve_image_with_any_extension(front_path)
+        raw_front = Image.open(front_path)
+        ImageOps.exif_transpose(raw_front, in_place=True)
+        front_img = _preprocess_card_image(
+            raw_front,
+            is_back=False,
+            single_back_image=single_back_image,
+            scaled_width=scaled_width,
+            scaled_height=scaled_height,
+            scaled_bleed_width=scaled_bleed_width,
+            scaled_bleed_height=scaled_bleed_height,
+            extend_corners_thickness=extend_corners_thickness,
+            crop=crop,
+            crop_backs=crop_backs,
+            fit=fit,
+            flip=False,
+            orientation=orientation,
         )
+        raw_front.close()
 
-    # Create the array that will store the filled templates
-        pages: List[Image.Image] = []
+        if only_fronts:
+            back_img = None
+        elif file in ds_set:
+            ds_path = os.path.join(ds_dir_path, file)
+            ds_path = resolve_image_with_any_extension(ds_path)
+            raw_back = Image.open(ds_path)
+            ImageOps.exif_transpose(raw_back, in_place=True)
+            back_img = _preprocess_card_image(
+                raw_back,
+                is_back=True,
+                single_back_image=single_back_image,
+                scaled_width=scaled_width,
+                scaled_height=scaled_height,
+                scaled_bleed_width=scaled_bleed_width,
+                scaled_bleed_height=scaled_bleed_height,
+                extend_corners_thickness=extend_corners_thickness,
+                crop=crop,
+                crop_backs=crop_backs,
+                fit=fit,
+                flip=True,
+                orientation=orientation,
+            )
+            raw_back.close()
+        else:
+            back_img = single_back_image_preprocessed
 
-        max_print_bleed = calculate_max_print_bleed(x_pos, y_pos, card_width_px, card_height_px, MINIMUM_BLEED)
+        return front_img, back_img
 
-        # Load and cache the single back image for reuse
-        # Do this if we expect both front and back pages and if we have a back image
-        # use_default_back_page indicates no back image was found
-        single_back_image = None
-        if not only_fronts and not use_default_back_page:
+    num_image = 1
+    it = iter(natsorted(list(check_paths_subset(front_set, ds_set))) + natsorted(list(ds_set)))
+    while True:
+        file_group = list(itertools.islice(it, num_cards - len(clean_skip_indices)))
+        if not file_group:
+            break
+
+        sheet_num += 1
+
+        front_cards: List[Image.Image | None] = [None] * num_cards
+        back_cards: List[Image.Image | None] = [None] * num_cards
+
+        slots = []
+        fg_it = iter(file_group)
+        for i in range(num_cards):
+            if i in clean_skip_indices:
+                continue
             try:
-                # We know the exact image path so we do not need resolve_image_with_any_extension()
-                single_back_image = Image.open(back_card_image_path)
-                single_back_image = ImageOps.exif_transpose(single_back_image)
-            except FileNotFoundError:
-                print(f'Cannot get back image "{back_card_image_path}". Using default instead.')
-                single_back_image = None
-            except OSError as e:
-                raise OSError(f'Failed to load back image "{back_card_image_path}": {e}') from e
-
-        # Create card layout
-        num_image = 1
-        # First iterate on single-sided cards, then iterate on double-sided cards
-        it = iter(natsorted(list(check_paths_subset(front_set, ds_set))) + natsorted(list(ds_set)))
-        while True:
-            file_group = list(itertools.islice(it, num_cards - len(clean_skip_indices)))
-            if not file_group:
+                f = next(fg_it)
+            except StopIteration:
                 break
+            slots.append((i, f))
 
-            # Fetch card art in batches
-            # Batch size is based on cards per page
-            front_card_images = []
-            back_card_images = []
-            file_group_iterator = iter(file_group)
-            for i in range(num_cards):
-                if i in clean_skip_indices:
-                    front_card_images.append(None)
-                    back_card_images.append(None)
-                    continue
+        # Preprocess cards in parallel; PIL releases the GIL during C ops
+        if len(slots) > 1:
+            workers = min(len(slots), os.cpu_count() or 1)
+            with ThreadPoolExecutor(max_workers=workers) as ex:
+                results = list(ex.map(_process_one, (f for _, f in slots)))
+        else:
+            results = [_process_one(f) for _, f in slots]
 
-                try:
-                    file = next(file_group_iterator)
-                except StopIteration:
-                    break
+        for (i, f), (front, back) in zip(slots, results):
+            print(f'Image {num_image}: {f}')
+            num_image += 1
 
-                print(f'Image {num_image}: {file}')
-                num_image += 1
+            images_to_close.append(front)
+            front_cards[i] = front
 
-                front_card_image_path = os.path.join(front_dir_path, file)
-                # Allow differing extensions for double-sided images
-                # Iteration is a combination of front and double-sided image paths
-                front_card_image_path = resolve_image_with_any_extension(front_card_image_path)
-                try:
-                    front_card_image = Image.open(front_card_image_path)
-                    front_card_image = ImageOps.exif_transpose(front_card_image)
-                except OSError as e:
-                    raise OSError(f'Failed to load front image "{front_card_image_path}": {e}') from e
-                front_card_images.append(front_card_image)
+            if back is not None and back is not single_back_image_preprocessed:
+                images_to_close.append(back)
+            back_cards[i] = back
 
-                if only_fronts:
-                    back_card_images.append(None)
-                    continue
+        front = Image.new('RGB', (page_w, page_h), 'white')
+        page_manager.draw_reg_mark_pil(front, inset_px, thick_px, length_px, sq_px, registration)
+        _paste_preprocessed_cards(front_cards, front, num_rows, num_cols, x_pos, y_pos,
+                                  ppi_ratio, flip=False, orientation=orientation)
+        if show_outline:
+            draw_outline(front, x_pos, y_pos, card_width_px, card_height_px, radius_px, ppi_ratio)
+        text = f'sheet: {sheet_num}, template: {template}'
+        if label is not None:
+            text = f'label: {label}, {text}'
+        _draw_label(front, text, orientation, page_width_px, page_height_px, ppi_ratio, label_margin_px)
 
-                # Add double-sided back image
-                if file in ds_set:
-                    ds_card_image_path = os.path.join(ds_dir_path, file)
-                    # Allow differing extensions for double-sided images
-                    # Iteration is a combination of front and double-sided image paths
-                    ds_card_image_path = resolve_image_with_any_extension(ds_card_image_path)
-                    try:
-                        ds_card_image = Image.open(ds_card_image_path)
-                        ds_card_image = ImageOps.exif_transpose(ds_card_image)
-                    except OSError as e:
-                        raise OSError(f'Failed to load double-sided image "{ds_card_image_path}": {e}') from e
-                    back_card_images.append(ds_card_image)
-                    continue
+        if not output_images and orientation == Orientation.PORTRAIT:
+            front = front.rotate(-90, expand=True, resample=Image.Resampling.NEAREST)
 
-                back_card_images.append(single_back_image)
-
-            front_page = reg_im.copy()
-            back_page = reg_im.copy()
-
-            # Create front layout
-            draw_card_layout(
-                front_card_images,
-                single_back_image,
-                front_page,
-                num_rows,
-                num_cols,
-                x_pos,
-                y_pos,
-                card_width_px,
-                card_height_px,
-                max_print_bleed,
-                crop,
-                crop_backs,
-                ppi_ratio,
-                extend_corners,
-                flip=False,
-                fit=fit,
-                orientation=orientation,
-            )
-
-            # Create back layout
-            draw_card_layout(
-                back_card_images,
-                single_back_image,
-                back_page,
-                num_rows,
-                num_cols,
-                x_pos,
-                y_pos,
-                card_width_px,
-                card_height_px,
-                max_print_bleed,
-                crop,
-                crop_backs,
-                ppi_ratio,
-                extend_corners,
-                flip=True, # Flip the back sides
-                fit=fit,
-                orientation=orientation,
-            )
-
-            # Draw cutting path outlines on top of the card images
+        if not only_fronts:
+            back = Image.new('RGB', (page_w, page_h), 'white')
+            page_manager.draw_reg_mark_pil(back, inset_px, thick_px, length_px, sq_px, registration)
+            _paste_preprocessed_cards(back_cards, back, num_rows, num_cols, x_pos, y_pos,
+                                      ppi_ratio, flip=True, orientation=orientation)
             if show_outline:
-                draw_outline(front_page, x_pos, y_pos, card_width_px, card_height_px, radius_px, ppi_ratio)
-                draw_outline(back_page, x_pos, y_pos, card_width_px, card_height_px, radius_px, ppi_ratio)
+                draw_outline(back, x_pos, y_pos, card_width_px, card_height_px, radius_px, ppi_ratio)
+            if not output_images and orientation == Orientation.PORTRAIT:
+                back = back.rotate(-90, expand=True, resample=Image.Resampling.NEAREST)
+        else:
+            back = None
 
-            # Add the front and back layouts (also handles portrait→landscape rotation)
-            add_front_back_pages(
-                front_page,
-                back_page,
-                pages,
-                page_width_px,
-                page_height_px,
-                ppi_ratio,
-                template,
-                only_fronts,
-                label,
-                orientation,
-                label_margin_px
+        if output_images:
+            ext = 'png' if output_format == 'png' else 'jpg'
+            kwargs = dict(format='PNG') if output_format == 'png' else dict(
+                format='JPEG', quality=(quality if quality is not None else 95)
             )
+            front.save(os.path.join(output_path, f'page{2 * sheet_num - 1}.{ext}'),
+                       dpi=(ppi, ppi), **kwargs)
+            front.close()
+            if back is not None:
+                back.save(os.path.join(output_path, f'page{2 * sheet_num}.{ext}'),
+                          dpi=(ppi, ppi), **kwargs)
+                back.close()
+        else:
+            pages.append(front)
+            if back is not None:
+                pages.append(back)
 
-        if len(pages) == 0:
+    for img in images_to_close:
+        img.close()
+    if single_back_image_preprocessed is not None:
+        single_back_image_preprocessed.close()
+    if single_back_image is not None:
+        single_back_image.close()
+
+    if output_images:
+        if sheet_num == 0:
             print('No pages were generated')
             return
+        print(f'Generated images: {output_path}')
+        return
 
-        # Load saved offset if available
-        if load_offset:
-            saved_offset = load_saved_offset()
+    if len(pages) == 0:
+        print('No pages were generated')
+        return
 
-            if saved_offset is None:
-                print('Offset cannot be applied')
-            else:
-                print(f'Loaded x offset: {saved_offset.x_offset}, y offset: {saved_offset.y_offset}, angle offset: {saved_offset.angle_offset}')
-                pages = offset_images(pages, saved_offset.x_offset, saved_offset.y_offset, ppi, saved_offset.angle_offset)
-
-        # Save the pages array as a PDF
-        if output_images:
-            for index, page in enumerate(pages):
-                page.save(os.path.join(output_path, f'page{index + 1}.png'), dpi=(ppi, ppi)) # Report correct DPI
-
-            print(f'Generated images: {output_path}')
-
+    if load_offset:
+        saved_offset = load_saved_offset()
+        if saved_offset is None:
+            print('Offset cannot be applied')
         else:
-            print(f'\nSaving PDF ({len(pages)} pages at {ppi} PPI)...')
-            save_kwargs = dict(resolution=math.floor(300 * ppi_ratio))
-            if quality is not None:
-                save_kwargs['quality'] = quality
-            pages[0].save(output_path, format='PDF', save_all=True, append_images=pages[1:], **save_kwargs)
-            print(f'Generated PDF: {output_path}')
+            print(f'Loaded x offset: {saved_offset.x_offset}, y offset: {saved_offset.y_offset}, angle offset: {saved_offset.angle_offset}')
+            pages = offset_images(pages, saved_offset.x_offset, saved_offset.y_offset, ppi, saved_offset.angle_offset)
+
+    print(f'\nSaving PDF ({len(pages)} pages at {ppi} PPI)...')
+    save_kwargs = dict(resolution=math.floor(300 * ppi_ratio))
+    if quality is not None:
+        save_kwargs['quality'] = quality
+    pages[0].save(output_path, format='PDF', save_all=True, append_images=pages[1:], **save_kwargs)
+    print(f'Generated PDF: {output_path}')
 
 class OffsetData(BaseModel):
     x_offset: int
@@ -1096,20 +1248,12 @@ def calculate_max_print_bleed(x_pos: List[int], y_pos: List[int], width: int, he
 
     x_border_max = min_bleed
     if len(x_pos) >= 2:
-        x_pos.sort()
-
-        x_pos_0 = x_pos[0]
-        x_pos_1 = x_pos[1]
-
-        x_border_max = max(0, math.ceil((x_pos_1 - x_pos_0 - width) / 2))
+        sx = sorted(x_pos)
+        x_border_max = max(0, math.ceil((sx[1] - sx[0] - width) / 2))
 
     y_border_max = min_bleed
     if len(y_pos) >= 2:
-        y_pos.sort()
-
-        y_pos_0 = y_pos[0]
-        y_pos_1 = y_pos[1]
-
-        y_border_max = max(0, math.ceil((y_pos_1 - y_pos_0 - height) / 2))
+        sy = sorted(y_pos)
+        y_border_max = max(0, math.ceil((sy[1] - sy[0] - height) / 2))
 
     return (x_border_max, y_border_max)

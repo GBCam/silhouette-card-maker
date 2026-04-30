@@ -1,12 +1,7 @@
 import math
 from typing import List, NamedTuple, Tuple
 
-import matplotlib.pyplot as plt
-from matplotlib.patches import Rectangle
-import matplotlib.lines as mlines
-from PIL import Image
-import io
-import numpy
+from PIL import Image, ImageDraw
 import size_convert
 from enums import Orientation, Registration
 
@@ -29,156 +24,81 @@ class CardLayout(NamedTuple):
     max_length_mm: float
 
 
-def generate_reg_mark(
-    paper_width: str,
-    paper_height: str,
-    inset: str,
-    thickness: str,
-    length: str,
-    dpi: int,
-    registration: Registration,
-    orientation: Orientation = Orientation.LANDSCAPE,
-) -> Image.Image:
-    """Generate a registration mark image for the given paper size.
-
-    Args:
-        paper_width: Paper width as a unit string (e.g. "11in").
-        paper_height: Paper height as a unit string (e.g. "8.5in").
-        inset: Distance from the paper edge to the registration marks.
-        thickness: Line thickness for registration marks.
-        length: Line length for registration marks.
-        dpi: Resolution in dots per inch.
-        registration: Registration pattern (THREE or FOUR).
-        orientation: Page orientation. Portrait swaps width/height.
-
-    Returns:
-        PIL Image with registration marks drawn on a white background.
-    """
-    paper_width_mm = size_convert.size_to_mm(paper_width)
-    paper_height_mm = size_convert.size_to_mm(paper_height)
-
-    # Paper sizes are stored as landscape. Swap for portrait.
-    if orientation == Orientation.PORTRAIT:
-        paper_width_mm, paper_height_mm = paper_height_mm, paper_width_mm
-    inset_mm = size_convert.size_to_mm(inset)
-    thickness_mm = size_convert.size_to_mm(thickness)
-    thickness_pt = size_convert.size_to_pt(thickness)
-    length_mm = size_convert.size_to_mm(length)
-
-    # Constrain registration mark parameters within valid ranges
-    length_mm = max(MIN_REG_LENGTH_MM, min(length_mm, MAX_REG_LENGTH_MM))
-    thickness_mm = max(MIN_REG_THICKNESS_MM, min(thickness_mm, MAX_REG_THICKNESS_MM))
-    inset_mm = max(MIN_REG_INSET_MM, min(inset_mm, MAX_REG_INSET_MM))
-
-    # Create figure sized to the paper dimensions
-    fig = plt.figure(figsize=(paper_width_mm / 25.4, paper_height_mm / 25.4), dpi=dpi)
-    ax = fig.add_axes([0, 0, 1, 1])  # Use full canvas
-    ax.set_xlim(0, paper_width_mm)
-    ax.set_ylim(0, paper_height_mm)
-    ax.set_aspect('equal')
-    ax.axis('off')
-    ax.set_facecolor('white')
-
-    if registration == Registration.THREE:
-        # Add filled black square (5x5mm at inset from left and top)
-        square_size = 5 + thickness_mm
-        square = Rectangle(
-            (inset_mm, paper_height_mm - inset_mm - square_size),
-            square_size, square_size,
-            facecolor='black',
-            edgecolor='none',
-            linewidth=0,
-            antialiased=False,
-        )
-        ax.add_patch(square)
-
-    else:  # Registration.FOUR
-        # Top-left L-shape (horizontal line)
-        x_start = inset_mm
-        x_end = inset_mm + length_mm - (thickness_mm / 2)
-        y_start = paper_height_mm - inset_mm
-        y_end = paper_height_mm - inset_mm
-        line = mlines.Line2D([x_start, x_end], [y_start, y_end], color='black', linewidth=thickness_pt)
-        ax.add_line(line)
+def _constrain_reg_params(inset_mm: float, thick_mm: float, len_mm: float) -> tuple[float, float, float]:
+    return (
+        max(MIN_REG_INSET_MM, min(inset_mm, MAX_REG_INSET_MM)),
+        max(MIN_REG_THICKNESS_MM, min(thick_mm, MAX_REG_THICKNESS_MM)),
+        max(MIN_REG_LENGTH_MM, min(len_mm, MAX_REG_LENGTH_MM)),
+    )
 
 
-        # Top-left L-shape (vertical line)
-        x_start = inset_mm
-        x_end = inset_mm
-        y_start = paper_height_mm - inset_mm
-        y_end = paper_height_mm - inset_mm - length_mm + (thickness_mm / 2)
-        line = mlines.Line2D([x_start, x_end], [y_start, y_end], color='black', linewidth=thickness_pt)
-        ax.add_line(line)
+def _l_shape_pts(cx, cy, length, thick, corner):
+    h = thick // 2
+    e = thick % 2
+    _PTS = {
+        'top-left': [
+            (cx - h, cy - h),
+            (cx - h + length, cy - h),
+            (cx - h + length, cy + h + e),
+            (cx + h + e, cy + h + e),
+            (cx + h + e, cy - h + length),
+            (cx - h, cy - h + length),
+        ],
+        'bottom-left': [
+            (cx - h, cy + h + e),
+            (cx - h + length, cy + h + e),
+            (cx - h + length, cy - h),
+            (cx + h + e, cy - h),
+            (cx + h + e, cy + h + e - length),
+            (cx - h, cy + h + e - length),
+        ],
+        'top-right': [
+            (cx + h + e, cy - h),
+            (cx + h + e - length, cy - h),
+            (cx + h + e - length, cy + h + e),
+            (cx - h, cy + h + e),
+            (cx - h, cy - h + length),
+            (cx + h + e, cy - h + length),
+        ],
+        'bottom-right': [
+            (cx + h + e, cy + h + e),
+            (cx + h + e - length, cy + h + e),
+            (cx + h + e - length, cy - h),
+            (cx - h, cy - h),
+            (cx - h, cy + h + e - length),
+            (cx + h + e, cy + h + e - length),
+        ],
+    }
+    return _PTS[corner]
 
 
-    # Bottom-left L-shape (horizontal line)
-    x_start = inset_mm
-    x_end = inset_mm + length_mm - (thickness_mm / 2)
-    y_start = inset_mm
-    y_end = inset_mm
-    line = mlines.Line2D([x_start, x_end], [y_start, y_end], color='black', linewidth=thickness_pt)
-    ax.add_line(line)
+def _draw_l_shape(draw, cx, cy, length, thick, corner):
+    draw.polygon(_l_shape_pts(cx, cy, length, thick, corner), fill='black')
 
 
-    # Bottom-left L-shape (vertical line)
-    x_start = inset_mm
-    x_end = inset_mm
-    y_start = inset_mm
-    y_end = inset_mm + length_mm - (thickness_mm / 2)
-    line = mlines.Line2D([x_start, x_end], [y_start, y_end], color='black', linewidth=thickness_pt)
-    ax.add_line(line)
+def draw_reg_mark_pil(
+    img: Image.Image,
+    inset_px: int,
+    thick_px: int,
+    length_px: int,
+    sq_px: int,
+    reg: Registration,
+):
+    draw = ImageDraw.Draw(img)
+    w, h = img.size
 
+    if reg == Registration.THREE:
+        half = thick_px // 2
+        r = inset_px - half + sq_px
+        draw.rectangle([inset_px - half, inset_px - half, r, r], fill='black')
+    else:
+        _draw_l_shape(draw, inset_px, inset_px, length_px, thick_px, 'top-left')
 
-    # Top-right L-shape (horizontal line)
-    x_start = paper_width_mm - inset_mm - length_mm + (thickness_mm / 2)
-    x_end = paper_width_mm - inset_mm
-    y_start = paper_height_mm - inset_mm
-    y_end = paper_height_mm - inset_mm
-    line = mlines.Line2D([x_start, x_end], [y_start, y_end], color='black', linewidth=thickness_pt)
-    ax.add_line(line)
+    _draw_l_shape(draw, inset_px, h - inset_px, length_px, thick_px, 'bottom-left')
+    _draw_l_shape(draw, w - inset_px, inset_px, length_px, thick_px, 'top-right')
 
-
-    # Top-right L-shape (vertical line)
-    x_start = paper_width_mm - inset_mm
-    x_end = paper_width_mm - inset_mm
-    y_start = paper_height_mm - inset_mm
-    y_end = paper_height_mm - inset_mm - length_mm + (thickness_mm / 2)
-    line = mlines.Line2D([x_start, x_end], [y_start, y_end], color='black', linewidth=thickness_pt)
-    ax.add_line(line)
-
-
-    if registration == Registration.FOUR:
-        # Bottom-right L-shape (horizontal line)
-        x_start = paper_width_mm - inset_mm - length_mm + (thickness_mm / 2)
-        x_end = paper_width_mm - inset_mm
-        y_start = inset_mm
-        y_end = inset_mm
-        line = mlines.Line2D([x_start, x_end], [y_start, y_end], color='black', linewidth=thickness_pt)
-        ax.add_line(line)
-
-
-        # Bottom-right L-shape (vertical line)
-        x_start = paper_width_mm - inset_mm
-        x_end = paper_width_mm - inset_mm
-        y_start = inset_mm
-        y_end = inset_mm + length_mm - (thickness_mm / 2)
-        line = mlines.Line2D([x_start, x_end], [y_start, y_end], color='black', linewidth=thickness_pt)
-        ax.add_line(line)
-
-
-    # Save output
-    fig.canvas.draw()
-    w, h = fig.canvas.get_width_height()
-    buf = fig.canvas.tostring_argb()
-    arr = numpy.frombuffer(buf, dtype=numpy.uint8).reshape(h, w, 4)
-
-    # Drop alpha channel (ARGB → RGB), then brute-force any non-white pixel to pure black
-    rgb = numpy.array(arr[:, :, 1:])
-    rgb[numpy.any(rgb < 255, axis=2)] = [0, 0, 0]
-    img = Image.fromarray(rgb)
-
-    plt.close(fig)
-    return img
+    if reg == Registration.FOUR:
+        _draw_l_shape(draw, w - inset_px, h - inset_px, length_px, thick_px, 'bottom-right')
 
 
 """
